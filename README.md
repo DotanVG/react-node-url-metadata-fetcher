@@ -57,7 +57,7 @@ This project was developed as part of a junior developer home task/exam to showc
 
 ### Prerequisites
 
-- Node.js (version specified in `package.json`)
+- Node.js 
 - npm (usually comes with Node.js)
 
 ### Installation
