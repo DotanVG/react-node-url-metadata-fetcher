@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
+import csrf from 'csurf';
+import cookieParser from 'cookie-parser';
 
 // Initialize Express application
 const app = express();
@@ -17,6 +19,13 @@ const IS_TESTING = process.env.NODE_ENV === 'test';
 app.use(cors()); // Enable Cross-Origin Resource Sharing
 app.use(helmet()); // Set security HTTP headers
 app.use(express.json()); // Parse JSON bodies
+app.use(cookieParser()); // Parse cookies
+
+// Setup CSRF protection
+const csrfProtection = csrf({ cookie: true });
+
+// Apply CSRF protection to all routes that accept user input
+app.use('/fetch-metadata', csrfProtection);
 
 // Configure rate limiting
 const requestLimiter = rateLimit({
@@ -44,7 +53,10 @@ app.post('/fetch-metadata', async (req, res) => {
 
         // Handle empty array case
         if (urls.length === 0) {
-            return res.json([]);
+            return res.json({
+                csrfToken: req.csrfToken(),
+                metadataResults: [],
+            });
         }
 
         // Fetch metadata for each URL
@@ -78,14 +90,22 @@ app.post('/fetch-metadata', async (req, res) => {
             })
         );
 
-        // Send the metadata results as JSON response
-        res.json(metadataResults);
+        // Send the metadata results as JSON response with CSRF token
+        res.json({
+            csrfToken: req.csrfToken(),
+            metadataResults: metadataResults,
+        });
     } catch (error) {
         console.error('Error fetching metadata:', error);
         res.status(500).json({
             error: 'An error occurred while fetching metadata',
         });
     }
+});
+
+// Add a route to get a CSRF token
+app.get('/get-csrf-token', csrfProtection, (req, res) => {
+    res.json({ csrfToken: req.csrfToken() });
 });
 
 // Start the server and store the server instance

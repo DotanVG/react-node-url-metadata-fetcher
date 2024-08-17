@@ -13,24 +13,32 @@ const TEST_TIMEOUT = 15000; // 15 seconds
 const EXTENDED_TEST_TIMEOUT = 70000; // 70 seconds for production tests
 
 describe('POST /fetch-metadata', () => {
+    let csrfToken;
+    let agent;
+
     // Set up the test environment before all tests
     beforeAll(() => {
         // Set NODE_ENV to 'test' to enable test-specific configurations
         process.env.NODE_ENV = 'test';
+        agent = request.agent(app);
     });
 
-    // Reset rate limiter before each test to ensure a clean state
+    // Reset rate limiter and get a new CSRF token before each test
     beforeEach(async () => {
         resetRateLimiter();
+
+        // Get a CSRF token before each test
+        const response = await agent.get('/get-csrf-token');
+        csrfToken = response.body.csrfToken;
     });
 
     // Test 1: Fetch metadata for valid URLs
     it(
         'should fetch metadata for valid URLs',
         async () => {
-            // Simulate a POST request to /fetch-metadata with an array of valid URLs
-            const response = await request(app)
+            const response = await agent
                 .post('/fetch-metadata')
+                .set('X-CSRF-Token', csrfToken)
                 .send({
                     urls: [
                         'https://github.com/DotanVG/react-node-url-metadata-fetcher',
@@ -45,11 +53,11 @@ describe('POST /fetch-metadata', () => {
 
             // Assertions
             expect(response.statusCode).toBe(200);
-            expect(response.body).toBeInstanceOf(Array);
-            expect(response.body.length).toBe(3);
+            expect(response.body.metadataResults).toBeInstanceOf(Array);
+            expect(response.body.metadataResults.length).toBe(3);
 
             // Logging and asserting each metadata entry
-            response.body.forEach((metadata, index) => {
+            response.body.metadataResults.forEach((metadata, index) => {
                 console.log(
                     `Metadata for URL #${index + 1} (${metadata.url}):`,
                     metadata
@@ -69,13 +77,14 @@ describe('POST /fetch-metadata', () => {
     it(
         'should handle invalid URLs gracefully',
         async () => {
-            const response = await request(app)
+            const response = await agent
                 .post('/fetch-metadata')
+                .set('X-CSRF-Token', csrfToken)
                 .send({ urls: ['http://localhost:1'] });
 
             // Expect a successful response with an error property
             expect(response.statusCode).toBe(200);
-            expect(response.body[0]).toHaveProperty('error');
+            expect(response.body.metadataResults[0]).toHaveProperty('error');
         },
         TEST_TIMEOUT
     );
@@ -84,13 +93,16 @@ describe('POST /fetch-metadata', () => {
     it(
         'should handle empty URL array',
         async () => {
-            const response = await request(app)
+            const response = await agent
                 .post('/fetch-metadata')
+                .set('X-CSRF-Token', csrfToken)
                 .send({ urls: [] });
 
             // Expect a successful response with an empty array
             expect(response.statusCode).toBe(200);
-            expect(response.body).toEqual([]);
+            expect(response.body).toHaveProperty('csrfToken');
+            expect(response.body).toHaveProperty('metadataResults');
+            expect(response.body.metadataResults).toEqual([]);
         },
         TEST_TIMEOUT
     );
@@ -99,16 +111,19 @@ describe('POST /fetch-metadata', () => {
     it(
         'should return correct response structure',
         async () => {
-            const response = await request(app)
+            const response = await agent
                 .post('/fetch-metadata')
+                .set('X-CSRF-Token', csrfToken)
                 .send({ urls: ['https://www.example.com'] });
 
             // Verify the response structure
             expect(response.statusCode).toBe(200);
-            expect(response.body[0]).toHaveProperty('url');
-            expect(response.body[0]).toHaveProperty('title');
-            expect(response.body[0]).toHaveProperty('description');
-            expect(response.body[0]).toHaveProperty('image');
+            expect(response.body.metadataResults[0]).toHaveProperty('url');
+            expect(response.body.metadataResults[0]).toHaveProperty('title');
+            expect(response.body.metadataResults[0]).toHaveProperty(
+                'description'
+            );
+            expect(response.body.metadataResults[0]).toHaveProperty('image');
         },
         TEST_TIMEOUT
     );
@@ -117,8 +132,9 @@ describe('POST /fetch-metadata', () => {
     it(
         'should handle invalid input',
         async () => {
-            const response = await request(app)
+            const response = await agent
                 .post('/fetch-metadata')
+                .set('X-CSRF-Token', csrfToken)
                 .send({ invalidKey: 'invalid data' });
 
             // Expect a bad request response
@@ -142,8 +158,9 @@ describe('POST /fetch-metadata', () => {
             const requests = Array(7)
                 .fill()
                 .map(() =>
-                    request(app)
+                    agent
                         .post('/fetch-metadata')
+                        .set('X-CSRF-Token', csrfToken)
                         .send({ urls: ['https://example.com'] })
                 );
 
