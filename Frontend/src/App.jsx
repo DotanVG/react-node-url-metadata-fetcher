@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import Navbar from './components/Navbar';
 import UrlInput from './components/UrlInput';
@@ -31,6 +31,10 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    fetchCsrfToken();
+  }, [fetchCsrfToken]);
+  
   // Function to validate URL
   const isValidUrl = (url) => {
     const pattern = new RegExp('^(https?:\\/\\/)'+ // protocol
