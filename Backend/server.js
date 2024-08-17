@@ -7,6 +7,7 @@ import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
 import csrf from 'csurf';
 import cookieParser from 'cookie-parser';
+import xss from 'xss-clean';
 
 // Initialize Express application
 const app = express();
@@ -37,6 +38,7 @@ app.use(
 ); // Set security HTTP headers
 app.use(express.json()); // Parse JSON bodies
 app.use(cookieParser()); // Parse cookies
+app.use(xss()); // Add XSS protection middleware
 
 // Setup CSRF protection
 const csrfProtection = csrf({
@@ -63,25 +65,45 @@ const requestLimiter = rateLimit({
 // Apply rate limiting to all routes
 app.use(requestLimiter);
 
+// Input validation middleware
+const validateUrls = (req, res, next) => {
+    const { urls } = req.body;
+
+    if (!urls || !Array.isArray(urls)) {
+        return res.status(400).json({
+            error: 'Invalid input. Please provide an array of URLs.',
+        });
+    }
+
+    // If the array is empty, we'll pass an empty array to the next middleware
+    if (urls.length === 0) {
+        req.validUrls = [];
+        return next();
+    }
+
+    const validUrls = urls.filter(url => {
+        try {
+            new URL(url);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    });
+
+    req.validUrls = validUrls;
+    next();
+};
+
 // Route to get CSRF token
 app.get('/get-csrf-token', (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
+    res.json({ csrfToken: req.csrfToken() });
 });
 
 // Route for fetching metadata
-app.post('/fetch-metadata', async (req, res) => {
+app.post('/fetch-metadata', validateUrls, async (req, res) => {
     try {
-        const { urls } = req.body;
-
-        // Check if urls is provided and is an array
-        if (!urls || !Array.isArray(urls)) {
-            return res.status(400).json({
-                error: 'Invalid input. Please provide an array of URLs.',
-            });
-        }
-
-        // Handle empty array case
-        if (urls.length === 0) {
+        // If no valid URLs, return an empty array immediately
+        if (req.validUrls.length === 0) {
             return res.json({
                 csrfToken: req.csrfToken(),
                 metadataResults: [],
@@ -90,7 +112,7 @@ app.post('/fetch-metadata', async (req, res) => {
 
         // Fetch metadata for each URL
         const metadataResults = await Promise.all(
-            urls.map(async (url) => {
+            req.validUrls.map(async (url) => {
                 try {
                     // Fetch the HTML content of the URL
                     const response = await fetch(url);
@@ -132,9 +154,13 @@ app.post('/fetch-metadata', async (req, res) => {
     }
 });
 
-// Add a route to get a CSRF token
-app.get('/get-csrf-token', csrfProtection, (req, res) => {
-    res.json({ csrfToken: req.csrfToken() });
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        error: 'An unexpected error occurred',
+        message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+    });
 });
 
 // Start the server and store the server instance
