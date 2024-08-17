@@ -15,17 +15,41 @@ const PORT = process.env.PORT || 3000;
 // Determine if the application is running in test mode
 const IS_TESTING = process.env.NODE_ENV === 'test';
 
+// Configure CORS
+const corsOptions = {
+    origin: ['http://localhost:5173', 'http://10.0.0.4:5173'], // Frontend URL for development
+    credentials: true, // This allows the server to accept cookies from CORS requests
+};
+app.use(cors(corsOptions)); // Enable Cross-Origin Resource Sharing with corsOptions
+
 // Apply middleware
-app.use(cors()); // Enable Cross-Origin Resource Sharing
-app.use(helmet()); // Set security HTTP headers
+app.use(
+    helmet.contentSecurityPolicy({
+        directives: {
+            defaultSrc: ["'self'"],
+            connectSrc: [
+                "'self'",
+                'http://localhost:5173',
+                'http://10.0.0.4:5173',
+            ], // Add frontend URLs here
+        },
+    })
+); // Set security HTTP headers
 app.use(express.json()); // Parse JSON bodies
 app.use(cookieParser()); // Parse cookies
 
 // Setup CSRF protection
-const csrfProtection = csrf({ cookie: true });
+const csrfProtection = csrf({
+    cookie: {
+    key: '_csrf',
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    },
+});
 
-// Apply CSRF protection to all routes that accept user input
-app.use('/fetch-metadata', csrfProtection);
+// Apply CSRF protection to all routes
+app.use(csrfProtection);
 
 // Configure rate limiting
 const requestLimiter = rateLimit({
@@ -39,7 +63,12 @@ const requestLimiter = rateLimit({
 // Apply rate limiting to all routes
 app.use(requestLimiter);
 
-// Define the route for fetching metadata
+// Route to get CSRF token
+app.get('/get-csrf-token', (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
+
+// Route for fetching metadata
 app.post('/fetch-metadata', async (req, res) => {
     try {
         const { urls } = req.body;
