@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
+import DOMPurify from 'dompurify';
 import Navbar from './components/Navbar';
 import UrlInput from './components/UrlInput';
 import TaggedUrls from './components/TaggedUrls';
@@ -19,7 +20,6 @@ function App() {
   const [taggedUrls, setTaggedUrls] = useState([]);
   const [metadata, setMetadata] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
   const [csrfToken, setCsrfToken] = useState('');
 
   // Function to fetch CSRF token
@@ -112,8 +112,15 @@ function App() {
         }
       );
       
-      setMetadata(response.data.metadataResults);
-      // Update CSRF token for next request
+      // Sanitize the metadata results
+      const sanitizedMetadata = response.data.metadataResults.map(item => ({
+        ...item,
+        title: DOMPurify.sanitize(item.title),
+        description: DOMPurify.sanitize(item.description),
+        image: DOMPurify.sanitize(item.image)
+      }));
+
+      setMetadata(sanitizedMetadata);
       setCsrfToken(response.data.csrfToken);
       toast.success('Metadata fetched successfully');
     } catch (error) {
@@ -175,7 +182,6 @@ function App() {
               clearInput={clearInput}
               handleKeyPress={handleKeyPress}
             />
-            {errorMessage && <p className="text-red-500 text-sm">{errorMessage}</p>}
             <SubmitButton isLoading={isLoading} onClick={handleSubmit} />
           </form>
 
