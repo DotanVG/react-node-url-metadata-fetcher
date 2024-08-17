@@ -5,6 +5,8 @@ import UrlInput from './components/UrlInput';
 import TaggedUrls from './components/TaggedUrls';
 import SubmitButton from './components/SubmitButton';
 import ResultsSection from './components/ResultsSection';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Create an axios instance with default config
 const api = axios.create({
@@ -27,66 +29,60 @@ function App() {
       setCsrfToken(response.data.csrfToken);
     } catch (error) {
       console.error('Error fetching CSRF token:', error);
-      // Don't set error message here to avoid showing it on first load
+      toast.error('Failed to fetch CSRF token. Please try again.');
     }
   }, []);
 
   useEffect(() => {
     fetchCsrfToken();
   }, [fetchCsrfToken]);
-  
+
   // Function to validate URL
   const isValidUrl = (url) => {
-    const pattern = new RegExp('^(https?:\\/\\/)'+ // protocol
-      '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
-      '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
-      '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
-      '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
-      '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
-    return !!pattern.test(url);
+    try {
+      new URL(url);
+      return true;
+    } catch (error) {
+      return false;
+    }
   };
 
-  // Function to add a URL to the tagged list
   const addUrl = () => {
     const trimmedUrl = inputUrl.trim();
     if (trimmedUrl && isValidUrl(trimmedUrl) && !taggedUrls.includes(trimmedUrl)) {
       setTaggedUrls([...taggedUrls, trimmedUrl]);
       setInputUrl('');
-      setErrorMessage('');
+      toast.success('URL added successfully');
     } else if (trimmedUrl && !isValidUrl(trimmedUrl)) {
-      setErrorMessage('Please enter a valid URL starting with http:// or https://');
+      toast.error('Please enter a valid URL starting with http:// or https://');
+    } else if (taggedUrls.includes(trimmedUrl)) {
+      toast.warning('This URL has already been added');
     }
   };
-
-  // Handle input change
-  const handleInputChange = (e) => {
-    setInputUrl(e.target.value);
-    if (e.target.value === '') {
-      setErrorMessage('');
-    }
-  };
-
+  
   // Handle key press in input field
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (inputUrl.trim() === '' && taggedUrls.length >= 3) {
         handleSubmit(e);
+      } else if (inputUrl.trim() === '' && taggedUrls.length < 3) {
+        toast.warning('Please enter at least 3 valid URLs before submitting.');
       } else {
-      addUrl();
-    }
+        addUrl();
+      }
     }
   };
 
   // Remove a tagged URL
   const removeUrl = (urlToRemove) => {
     setTaggedUrls(taggedUrls.filter(url => url !== urlToRemove));
+    toast.info('URL removed');
   };
 
   // Clear input field
   const clearInput = () => {
     setInputUrl('');
-    setErrorMessage('');
   };
 
   // Handle form submission
@@ -97,12 +93,11 @@ function App() {
     }
     
     if (taggedUrls.length < 3) {
-      setErrorMessage('Please enter at least 3 valid URLs.');
+      toast.error('Please enter at least 3 valid URLs.');
       return;
     }
 
     setIsLoading(true);
-    setErrorMessage('');
     setMetadata([]);
 
     if (!csrfToken) {
@@ -120,9 +115,10 @@ function App() {
       setMetadata(response.data.metadataResults);
       // Update CSRF token for next request
       setCsrfToken(response.data.csrfToken);
+      toast.success('Metadata fetched successfully');
     } catch (error) {
       console.error('Error fetching metadata:', error);
-      setErrorMessage('Failed to fetch metadata. Please try again.');
+      toast.error('Failed to fetch metadata. Please try again.');
       if (error.response && error.response.status === 403) {
         // If we get a 403, try to fetch a new CSRF token
         await fetchCsrfToken();
@@ -156,9 +152,10 @@ function App() {
   const copyAsJSON = () => {
     const jsonContent = JSON.stringify(metadata, null, 2);
     navigator.clipboard.writeText(jsonContent).then(() => {
-      alert('JSON copied to clipboard!');
+      toast.success('JSON copied to clipboard!');
     }).catch(err => {
       console.error('Failed to copy JSON: ', err);
+      toast.error('Failed to copy JSON to clipboard');
     });
   };
 
@@ -192,6 +189,7 @@ function App() {
           )}
         </div>
       </main>
+      <ToastContainer position="bottom-right" />
     </div>
   );
 }
