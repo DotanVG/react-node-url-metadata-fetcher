@@ -16,19 +16,27 @@ const PORT = process.env.PORT || 3000;
 // Determine if the application is running in test mode
 const IS_TESTING = process.env.NODE_ENV === 'test';
 
-// Configure CORS
-const corsOptions = {
-    origin: [
-        'http://localhost:5173', // Local development
-        'https://react-node-url-mdata-fetch-dotanv.netlify.app/', // Production frontend URL
-    ],
-    credentials: true, // This allows the server to accept cookies and headers from CORS requests,
-    methods: ['GET', 'POST', 'OPTIONS'],
-};
-app.use(cors(corsOptions)); // Enable Cross-Origin Resource Sharing with corsOptions
+// Define allowed origins
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://react-node-url-mdata-fetch-dotanv.netlify.app',
+];
 
-// Explicitly handle preflight requests
-app.options('*', cors(corsOptions));
+// Custom CORS middleware
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
 
 // Apply middleware
 app.use(

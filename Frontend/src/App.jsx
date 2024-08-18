@@ -33,6 +33,7 @@ function App() {
     }
   }, []);
 
+  // Fetch CSRF token on component mount
   useEffect(() => {
     fetchCsrfToken();
   }, [fetchCsrfToken]);
