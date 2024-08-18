@@ -171,10 +171,10 @@ function App() {
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <Navbar />
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-6">
-          <h2 className="text-2xl font-bold mb-4">Extract Metadata From URL</h2>
-          <p className="mb-4 text-gray-600">Enter at least 3 URLs</p>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6 sm:p-8">
+          <h2 className="text-3xl font-bold mb-6">Extract Metadata From URL</h2>
+          <p className="mb-6 text-xl text-gray-600">Enter at least 3 URLs</p>
+          <form onSubmit={handleSubmit} className="space-y-6">
             <TaggedUrls taggedUrls={taggedUrls} removeUrl={removeUrl} />
             <UrlInput 
               inputUrl={inputUrl}
