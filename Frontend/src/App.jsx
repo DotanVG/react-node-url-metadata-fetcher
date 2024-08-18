@@ -11,7 +11,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Create an axios instance with default config
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://react-node-url-metadata-fetcher.onrender.com',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
   withCredentials: true,
 });
 
@@ -26,21 +26,10 @@ function App() {
   const fetchCsrfToken = useCallback(async () => {
     try {
       const response = await api.get('/get-csrf-token');
-      console.log('CSRF Token fetched:', response.data.csrfToken);
       setCsrfToken(response.data.csrfToken);
-      api.defaults.headers.common['X-CSRF-Token'] = response.data.csrfToken;
     } catch (error) {
       console.error('Error fetching CSRF token:', error);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Response status:', error.response.status);
-        console.error('Response headers:', error.response.headers);
-      } else if (error.request) {
-        console.error('No response received:', error.request);
-      } else {
-        console.error('Error setting up request:', error.message);
-      }
-      toast.error('Failed to fetch CSRF token. Please check the console for details.');
+      toast.error('Failed to fetch CSRF token. Please try again.');
     }
   }, []);
 
@@ -111,6 +100,10 @@ function App() {
     setIsLoading(true);
     setMetadata([]);
 
+    if (!csrfToken) {
+      await fetchCsrfToken();
+    }
+
     try {
       const response = await api.post('/fetch-metadata', 
         { urls: taggedUrls },
@@ -141,8 +134,8 @@ function App() {
       setIsLoading(false);
     }
   };
-
-  // Function to download results as CSV
+  
+// Downloads metadata as a CSV file named "metadata_results.csv"
   const downloadCSV = () => {
     const csvContent = [
       ['URL', 'Title', 'Description'],

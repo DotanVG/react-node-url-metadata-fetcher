@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
+import csrf from 'csurf';
 import cookieParser from 'cookie-parser';
 import xss from 'xss-clean';
 
@@ -17,20 +18,40 @@ const IS_TESTING = process.env.NODE_ENV === 'test';
 
 // Configure CORS
 const corsOptions = {
-    origin: IS_TESTING
-        ? '*'
-        : 'https://react-node-url-mdata-fetch-dotanv.netlify.app',
-    credentials: true,
+    origin: [
+        'http://localhost:5173', // Local development
+        'https://react-node-url-mdata-fetch-dotanv.netlify.app/', // Production frontend URL
+    ],
+    credentials: true, // This allows the server to accept cookies and headers from CORS requests,
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-CSRF-Token'],
 };
+app.use(cors(corsOptions)); // Enable Cross-Origin Resource Sharing with corsOptions
+
+// Explicitly handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Apply middleware
-app.use(cors(corsOptions));
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(express.json());
-app.use(cookieParser());
-app.use(xss());
+app.use(
+    helmet({
+        contentSecurityPolicy: false, // Disable CSP for now to troubleshoot
+    })
+);
+app.use(express.json()); // Parse JSON bodies
+app.use(cookieParser()); // Parse cookies
+app.use(xss()); // Add XSS protection middleware
+
+// Setup CSRF protection
+const csrfProtection = csrf({
+    cookie: {
+        key: '_csrf', // CSRF cookie name
+        httpOnly: true, // Prevent client-side access to the cookie
+        sameSite: 'none', // Set CSRF cookies to 'none' for cross-site requests
+        secure: process.env.NODE_ENV === 'production', // Secure cookie in production (only sent over HTTPS)
+    },
+});
+
+// Apply CSRF protection to all routes
+app.use(csrfProtection);
 
 // Configure rate limiting
 const requestLimiter = rateLimit({
@@ -54,7 +75,13 @@ const validateUrls = (req, res, next) => {
         });
     }
 
-    req.validUrls = urls.filter((url) => {
+    // If the array is empty, we'll pass an empty array to the next middleware
+    if (urls.length === 0) {
+        req.validUrls = [];
+        return next();
+    }
+
+    const validUrls = urls.filter((url) => {
         try {
             new URL(url);
             return true;
@@ -63,15 +90,24 @@ const validateUrls = (req, res, next) => {
         }
     });
 
+    req.validUrls = validUrls;
     next();
 };
+
+// Route to get CSRF token
+app.get('/get-csrf-token', (req, res) => {
+    res.json({ csrfToken: req.csrfToken() });
+});
 
 // Route for fetching metadata
 app.post('/fetch-metadata', validateUrls, async (req, res) => {
     try {
         // If no valid URLs, return an empty array immediately
         if (req.validUrls.length === 0) {
-            return res.json({ metadataResults: [] });
+            return res.json({
+                csrfToken: req.csrfToken(),
+                metadataResults: [],
+            });
         }
 
         // Fetch metadata for each URL
@@ -105,7 +141,11 @@ app.post('/fetch-metadata', validateUrls, async (req, res) => {
             })
         );
 
-        res.json({ metadataResults });
+        // Send the metadata results as JSON response with CSRF token
+        res.json({
+            csrfToken: req.csrfToken(),
+            metadataResults: metadataResults,
+        });
     } catch (error) {
         console.error('Error fetching metadata:', error);
         res.status(500).json({
