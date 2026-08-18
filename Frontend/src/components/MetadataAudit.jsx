@@ -108,7 +108,7 @@ const MetadataAudit = ({ audit, result }) => {
 
                 <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-slate-900 dark:text-white">
-                        Metadata completeness
+                        Metadata Analysis
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                         <Tally

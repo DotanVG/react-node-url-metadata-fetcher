@@ -65,7 +65,7 @@ describe('MetadataAudit', () => {
     it('starts collapsed, showing only the summary', async () => {
         render(<MetadataAudit audit={buildAudit(FIELDS)} result={RESULT} />);
 
-        const toggle = screen.getByRole('button', { name: /metadata completeness/i });
+        const toggle = screen.getByRole('button', { name: /metadata analysis/i });
         expect(toggle).toHaveAttribute('aria-expanded', 'false');
         expect(screen.queryByText('Site name')).not.toBeInTheDocument();
     });
@@ -73,7 +73,7 @@ describe('MetadataAudit', () => {
     it('expands and collapses on click', async () => {
         const user = userEvent.setup();
         render(<MetadataAudit audit={buildAudit(FIELDS)} result={RESULT} />);
-        const toggle = screen.getByRole('button', { name: /metadata completeness/i });
+        const toggle = screen.getByRole('button', { name: /metadata analysis/i });
 
         await user.click(toggle);
         expect(toggle).toHaveAttribute('aria-expanded', 'true');
@@ -87,7 +87,7 @@ describe('MetadataAudit', () => {
     it('groups fields by how much they matter', async () => {
         const user = userEvent.setup();
         render(<MetadataAudit audit={buildAudit(FIELDS)} result={RESULT} />);
-        await user.click(screen.getByRole('button', { name: /metadata completeness/i }));
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
 
         expect(screen.getByRole('heading', { name: /Essential/ })).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: /Recommended/ })).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe('MetadataAudit', () => {
     it('states each status in words, not colour alone', async () => {
         const user = userEvent.setup();
         render(<MetadataAudit audit={buildAudit(FIELDS)} result={RESULT} />);
-        await user.click(screen.getByRole('button', { name: /metadata completeness/i }));
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
 
         expect(screen.getByText('Published')).toBeInTheDocument();
         expect(screen.getByText('Inferred')).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe('MetadataAudit', () => {
     it('distinguishes a value the page published from one we guessed', async () => {
         const user = userEvent.setup();
         render(<MetadataAudit audit={buildAudit(FIELDS)} result={RESULT} />);
-        await user.click(screen.getByRole('button', { name: /metadata completeness/i }));
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
 
         const items = screen.getAllByRole('listitem');
         const siteName = items.find((li) => within(li).queryByText('Site name'));
@@ -121,7 +121,7 @@ describe('MetadataAudit', () => {
     it('names the tag needed to fix each gap', async () => {
         const user = userEvent.setup();
         render(<MetadataAudit audit={buildAudit(FIELDS)} result={RESULT} />);
-        await user.click(screen.getByRole('button', { name: /metadata completeness/i }));
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
 
         expect(screen.getByText('og:title')).toBeInTheDocument();
         expect(screen.getByText('og:description')).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe('MetadataAudit', () => {
     it('shows the value when present and the hint when not', async () => {
         const user = userEvent.setup();
         render(<MetadataAudit audit={buildAudit(FIELDS)} result={RESULT} />);
-        await user.click(screen.getByRole('button', { name: /metadata completeness/i }));
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
 
         // Published: the actual value. Missing: the hint explaining what it is for.
         expect(screen.getByText('A real title')).toBeInTheDocument();
@@ -141,7 +141,7 @@ describe('MetadataAudit', () => {
         const user = userEvent.setup();
         const fields = [field({ status: 'published', source: 'twitter' })];
         render(<MetadataAudit audit={buildAudit(fields)} result={RESULT} />);
-        await user.click(screen.getByRole('button', { name: /metadata completeness/i }));
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
 
         expect(screen.getByText(/Twitter Card/)).toBeInTheDocument();
     });
@@ -171,7 +171,7 @@ describe('MetadataAudit', () => {
                 result={{ keywords: ['alpha', 'beta'] }}
             />
         );
-        await user.click(screen.getByRole('button', { name: /metadata completeness/i }));
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
 
         expect(screen.getByText('alpha, beta')).toBeInTheDocument();
     });

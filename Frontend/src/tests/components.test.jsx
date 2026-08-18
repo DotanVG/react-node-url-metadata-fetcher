@@ -234,7 +234,7 @@ describe('ResultsSection', () => {
         expect(gridButton).toHaveAttribute('aria-pressed', 'true');
         expect(listButton).toHaveAttribute('aria-pressed', 'false');
         expect(screen.queryByText('a')).not.toBeInTheDocument();
-        expect(screen.getByText('Metadata completeness')).toBeInTheDocument();
+        expect(screen.getByText('Metadata Analysis')).toBeInTheDocument();
         expect(screen.getByText('72%')).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: /open full details for a/i }));

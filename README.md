@@ -36,7 +36,7 @@ Give it a URL. It fetches the page, parses the markup and returns the metadata t
 - **No scheme needed.** `example.com` becomes `https://example.com/`.
 - **Nothing hides a failure.** A bad link comes back as its own error card with a plain-English reason; the rest of the batch is unaffected.
 - **Wakes the API on load.** The backend sits on a free tier that sleeps after 15 minutes. The app pings it the moment the page opens and shows exactly what is happening while it boots, so your first click is never the one that waits.
-- **Audits the tags, not just the values.** Every result carries a completeness breakdown showing which tags the page publishes, which values were inferred and which tags are absent. Each gap includes the tag needed to fix it.
+- **Analyzes the tags, not just the values.** Every result includes a metadata analysis showing which tags the page publishes, which values were inferred and which tags are absent. Each gap includes the tag needed to fix it.
 - **Flexible image-first results.** Switch between a detailed list and a compact desktop grid. Click or tap a thumbnail to inspect the complete image in the center of the screen.
 - **Export anywhere.** Copy as JSON, or download JSON/CSV (properly escaped, and hardened against spreadsheet formula injection).
 - **Dark mode**, full keyboard support, and a layout that works on a phone.
@@ -47,7 +47,7 @@ Give it a URL. It fetches the page, parses the markup and returns the metadata t
 | --- | --- |
 | ![Responsive image grid](docs/screenshots/results-grid-dark.png) | ![Detailed result list](docs/screenshots/results-list-dark.png) |
 
-The grid keeps preview images prominent and shows metadata completeness on every card. Select the completeness row or the card body to open the full result and metadata audit. The list view exposes descriptions, timing, destination links and the complete audit directly.
+The grid keeps preview images prominent and shows Metadata Analysis on every card. Select the analysis row or the card body to open the full result and metadata audit. The list view exposes descriptions, timing, destination links and the complete audit directly.
 
 ![Centered full image preview](docs/screenshots/image-preview.png)
 

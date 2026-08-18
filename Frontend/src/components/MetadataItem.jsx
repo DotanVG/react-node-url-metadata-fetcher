@@ -152,7 +152,7 @@ const MetadataItem = ({ item, layout = 'list', imagePreviewEnabled = true }) => 
                             className="pointer-events-auto relative z-20 mt-4 flex w-full items-center justify-between gap-3 border-t border-slate-200 pt-3 text-left text-xs transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-800 dark:hover:text-indigo-300"
                         >
                             <span className="text-slate-500 dark:text-slate-400">
-                                Metadata completeness
+                                Metadata Analysis
                             </span>
                             <span className="ml-auto font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">
                                 {Number.isFinite(item.audit?.score)
