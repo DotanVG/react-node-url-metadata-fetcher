@@ -1,0 +1,16 @@
+# Render blueprint for the backend API.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: url-metadata-fetcher-api
+    runtime: node
+    plan: free
+    rootDir: Backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://react-node-url-mdata-fetch-dotanv.netlify.app,http://localhost:5173

@@ -1,26 +1,46 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Custom styles */
-body {
-  font-family: 'Inter', sans-serif;
+@layer base {
+    html {
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        font-family: 'Inter', ui-sans-serif, system-ui, -apple-system,
+            'Segoe UI', Roboto, sans-serif;
+        @apply antialiased;
+    }
+
+    /* Keep keyboard focus obvious without drawing a ring on every mouse click. */
+    :focus-visible {
+        @apply outline-none;
+    }
 }
 
-/* Scrollbar styles */
+@layer utilities {
+    .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+    @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+    @apply rounded-full bg-slate-300 dark:bg-slate-700;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+    @apply bg-slate-400 dark:bg-slate-600;
 }

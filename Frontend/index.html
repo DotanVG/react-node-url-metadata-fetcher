@@ -1,14 +1,59 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>URL Metadata Fetcher</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="alternate icon" href="/favicon.ico" />
+
+        <title>URL Metadata Fetcher — preview any link's title, description and image</title>
+        <meta
+            name="description"
+            content="Paste any URL and instantly see the title, description and preview image it shows when shared. Export the results as JSON or CSV."
+        />
+        <meta name="theme-color" content="#4f46e5" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="URL Metadata Fetcher" />
+        <meta
+            property="og:description"
+            content="See what any link looks like when it is shared. Fetch titles, descriptions and preview images, then export as JSON or CSV."
+        />
+        <meta property="og:site_name" content="URL Metadata Fetcher" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="URL Metadata Fetcher" />
+        <meta
+            name="twitter:description"
+            content="See what any link looks like when it is shared."
+        />
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+
+        <script>
+            // Apply the saved theme before first paint so dark-mode users never
+            // get a white flash on load.
+            (function () {
+                try {
+                    var stored = localStorage.getItem('umf:theme');
+                    var dark =
+                        stored === 'dark' ||
+                        (!stored &&
+                            window.matchMedia('(prefers-color-scheme: dark)').matches);
+                    document.documentElement.classList.toggle('dark', dark);
+                    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+                } catch (error) {
+                    /* storage blocked — the app still works, just unthemed */
+                }
+            })();
+        </script>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.jsx"></script>
+    </body>
 </html>

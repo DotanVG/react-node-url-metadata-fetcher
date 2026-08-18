@@ -1,13 +1,23 @@
-import React from 'react';
+import { FiLoader, FiZap } from 'react-icons/fi';
 
-const SubmitButton = ({ isLoading, onClick }) => (
-    <button 
-        type="submit" 
-        className="w-full bg-blue-500 text-white rounded-md px-6 py-3 text-lg font-semibold hover:bg-blue-600 transition-colors"
-        disabled={isLoading}
-        onClick={onClick}
+const SubmitButton = ({ isLoading, disabled, count }) => (
+    <button
+        type="submit"
+        disabled={disabled || isLoading}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-slate-900"
     >
-        {isLoading ? 'Extracting...' : 'Extract'}
+        {isLoading ? (
+            <>
+                <FiLoader className="animate-spin" size={18} aria-hidden="true" />
+                Fetching metadata…
+            </>
+        ) : (
+            <>
+                <FiZap size={18} aria-hidden="true" />
+                Fetch metadata
+                {count > 0 ? ` for ${count} URL${count === 1 ? '' : 's'}` : ''}
+            </>
+        )}
     </button>
 );
 

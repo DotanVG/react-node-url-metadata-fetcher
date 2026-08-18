@@ -1,19 +1,32 @@
-import React from 'react';
-import ResultActions from './ResultActions';
-import MetadataItem from './MetadataItem';
+import MetadataItem from './MetadataItem.jsx';
+import ResultActions from './ResultActions.jsx';
 
-const ResultsSection = ({ metadata, copyAsJSON, downloadCSV }) => (
-    <div className="mt-8">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-            <h3 className="text-2xl font-semibold mb-4 sm:mb-0">Metadata Results</h3>
-            <ResultActions copyAsJSON={copyAsJSON} downloadCSV={downloadCSV} />
+const ResultsSection = ({ results, summary, ...actions }) => (
+    <section className="mt-10" aria-labelledby="results-heading">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h3
+                    id="results-heading"
+                    className="text-xl font-semibold text-slate-900 dark:text-white"
+                >
+                    Results
+                </h3>
+                {summary && (
+                    <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                        {summary.succeeded} of {summary.requested} fetched
+                        {summary.failed > 0 ? ` · ${summary.failed} failed` : ''}
+                    </p>
+                )}
+            </div>
+            <ResultActions {...actions} />
         </div>
-        <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2">
-            {metadata.map((item, index) => (
-                <MetadataItem key={index} item={item} />
+
+        <ul className="space-y-4">
+            {results.map((item, index) => (
+                <MetadataItem key={`${item.url}-${index}`} item={item} />
             ))}
-        </div>
-    </div>
+        </ul>
+    </section>
 );
 
 export default ResultsSection;
