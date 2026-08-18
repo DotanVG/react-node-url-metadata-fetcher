@@ -3,11 +3,30 @@ import * as cheerio from 'cheerio';
 const MAX_TEXT_LENGTH = 1000;
 
 /**
+ * Where a value came from. Reported alongside the value because the source is
+ * itself useful: a title that came from `<title>` rather than `og:title` still
+ * renders, but it is not what the page told social platforms to show.
+ *
+ * `derived` means we worked the value out ourselves — the page never published
+ * it — so it must never be presented as something the author provided.
+ */
+export const SOURCES = {
+    OG: 'og',
+    TWITTER: 'twitter',
+    JSON_LD: 'jsonld',
+    HTML: 'html',
+    DERIVED: 'derived',
+};
+
+/**
  * Pulls the useful bits out of a page's HTML.
  *
  * Order of preference throughout: Open Graph → Twitter Card → JSON-LD →
  * plain HTML. That is the order publishers actually curate, so it gives the
  * closest thing to "what this link looks like when shared".
+ *
+ * Returns the flat metadata fields plus a `sources` map naming the winning
+ * source for each one.
  */
 export function extractMetadata(html, baseUrl) {
     const $ = cheerio.load(html);
@@ -16,74 +35,109 @@ export function extractMetadata(html, baseUrl) {
     const meta = (selector, attribute = 'content') =>
         clean($(selector).first().attr(attribute));
 
-    const title =
-        meta('meta[property="og:title"]') ||
-        meta('meta[name="og:title"]') ||
-        meta('meta[name="twitter:title"]') ||
-        clean(jsonLd.headline || jsonLd.name) ||
-        clean($('title').first().text()) ||
-        clean($('h1').first().text()) ||
-        '';
-
-    const description =
-        meta('meta[property="og:description"]') ||
-        meta('meta[name="og:description"]') ||
-        meta('meta[name="twitter:description"]') ||
-        meta('meta[name="description"]') ||
-        clean(jsonLd.description) ||
-        '';
-
-    const image = absolute(
-        meta('meta[property="og:image:secure_url"]') ||
-            meta('meta[property="og:image:url"]') ||
-            meta('meta[property="og:image"]') ||
-            meta('meta[name="og:image"]') ||
-            meta('meta[name="twitter:image"]') ||
-            meta('meta[name="twitter:image:src"]') ||
-            meta('link[rel="image_src"]', 'href') ||
-            clean(firstJsonLdImage(jsonLd)),
-        baseUrl
+    const title = pick(
+        [meta('meta[property="og:title"]'), SOURCES.OG],
+        [meta('meta[name="og:title"]'), SOURCES.OG],
+        [meta('meta[name="twitter:title"]'), SOURCES.TWITTER],
+        [clean(jsonLd.headline || jsonLd.name), SOURCES.JSON_LD],
+        [clean($('title').first().text()), SOURCES.HTML],
+        [clean($('h1').first().text()), SOURCES.HTML]
     );
 
-    const siteName =
-        meta('meta[property="og:site_name"]') ||
-        meta('meta[name="application-name"]') ||
-        hostnameOf(baseUrl);
+    const description = pick(
+        [meta('meta[property="og:description"]'), SOURCES.OG],
+        [meta('meta[name="og:description"]'), SOURCES.OG],
+        [meta('meta[name="twitter:description"]'), SOURCES.TWITTER],
+        [meta('meta[name="description"]'), SOURCES.HTML],
+        [clean(jsonLd.description), SOURCES.JSON_LD]
+    );
 
-    return {
-        title: truncate(title),
-        description: truncate(description),
-        image,
-        imageAlt: truncate(
-            meta('meta[property="og:image:alt"]') ||
-                meta('meta[name="twitter:image:alt"]') ||
-                '',
-            200
-        ),
-        siteName: truncate(siteName, 200),
-        favicon: findFavicon($, baseUrl),
-        type: meta('meta[property="og:type"]') || '',
-        author: truncate(
-            meta('meta[name="author"]') ||
-                meta('meta[property="article:author"]') ||
-                clean(authorFromJsonLd(jsonLd)) ||
-                '',
-            200
-        ),
-        publishedAt:
-            meta('meta[property="article:published_time"]') ||
-            meta('meta[name="date"]') ||
-            clean(jsonLd.datePublished) ||
-            '',
-        canonicalUrl: absolute(meta('link[rel="canonical"]', 'href'), baseUrl),
-        locale:
-            meta('meta[property="og:locale"]') ||
-            clean($('html').attr('lang')) ||
-            '',
-        themeColor: meta('meta[name="theme-color"]') || '',
-        keywords: splitKeywords(meta('meta[name="keywords"]')),
+    const image = pick(
+        [meta('meta[property="og:image:secure_url"]'), SOURCES.OG],
+        [meta('meta[property="og:image:url"]'), SOURCES.OG],
+        [meta('meta[property="og:image"]'), SOURCES.OG],
+        [meta('meta[name="og:image"]'), SOURCES.OG],
+        [meta('meta[name="twitter:image"]'), SOURCES.TWITTER],
+        [meta('meta[name="twitter:image:src"]'), SOURCES.TWITTER],
+        [meta('link[rel="image_src"]', 'href'), SOURCES.HTML],
+        [clean(firstJsonLdImage(jsonLd)), SOURCES.JSON_LD]
+    );
+
+    const imageAlt = pick(
+        [meta('meta[property="og:image:alt"]'), SOURCES.OG],
+        [meta('meta[name="twitter:image:alt"]'), SOURCES.TWITTER]
+    );
+
+    // The hostname is a fallback, not something the page published — hence
+    // `derived`, so an audit never credits the page for it.
+    const siteName = pick(
+        [meta('meta[property="og:site_name"]'), SOURCES.OG],
+        [meta('meta[name="application-name"]'), SOURCES.HTML],
+        [hostnameOf(baseUrl), SOURCES.DERIVED]
+    );
+
+    const author = pick(
+        [meta('meta[name="author"]'), SOURCES.HTML],
+        [meta('meta[property="article:author"]'), SOURCES.OG],
+        [clean(authorFromJsonLd(jsonLd)), SOURCES.JSON_LD]
+    );
+
+    const publishedAt = pick(
+        [meta('meta[property="article:published_time"]'), SOURCES.OG],
+        [meta('meta[name="date"]'), SOURCES.HTML],
+        [clean(jsonLd.datePublished), SOURCES.JSON_LD]
+    );
+
+    const locale = pick(
+        [meta('meta[property="og:locale"]'), SOURCES.OG],
+        [clean($('html').attr('lang')), SOURCES.HTML]
+    );
+
+    const type = pick([meta('meta[property="og:type"]'), SOURCES.OG]);
+    const themeColor = pick([meta('meta[name="theme-color"]'), SOURCES.HTML]);
+    const canonical = pick([meta('link[rel="canonical"]', 'href'), SOURCES.HTML]);
+    const favicon = findFavicon($, baseUrl);
+    const keywords = pick([meta('meta[name="keywords"]'), SOURCES.HTML]);
+
+    const fields = {
+        title: withValue(title, truncate(title.value)),
+        description: withValue(description, truncate(description.value)),
+        image: withValue(image, absolute(image.value, baseUrl)),
+        imageAlt: withValue(imageAlt, truncate(imageAlt.value, 200)),
+        siteName: withValue(siteName, truncate(siteName.value, 200)),
+        favicon: withValue(favicon, absolute(favicon.value, baseUrl)),
+        type: type,
+        author: withValue(author, truncate(author.value, 200)),
+        publishedAt: publishedAt,
+        canonicalUrl: withValue(canonical, absolute(canonical.value, baseUrl)),
+        locale: locale,
+        themeColor: themeColor,
+        keywords: withValue(keywords, splitKeywords(keywords.value)),
     };
+
+    const metadata = {};
+    const sources = {};
+    for (const [key, field] of Object.entries(fields)) {
+        metadata[key] = field.value;
+        // A value that resolved away to nothing (a javascript: image, say)
+        // has no source to report.
+        sources[key] = isEmpty(field.value) ? null : field.source;
+    }
+
+    return { ...metadata, sources };
 }
+
+/** First non-empty candidate wins, carrying its source along. */
+function pick(...candidates) {
+    for (const [value, source] of candidates) {
+        if (value) return { value, source };
+    }
+    return { value: '', source: null };
+}
+
+const withValue = (field, value) => ({ value, source: field.source });
+
+const isEmpty = (value) => (Array.isArray(value) ? value.length === 0 : !value);
 
 /** Collapses whitespace and trims — page titles love stray newlines. */
 function clean(value) {
@@ -128,13 +182,15 @@ function findFavicon($, baseUrl) {
     ];
 
     for (const selector of candidates) {
-        const href = $(selector).first().attr('href');
-        const resolved = absolute(clean(href), baseUrl);
-        if (resolved) return resolved;
+        const href = clean($(selector).first().attr('href'));
+        if (href && absolute(href, baseUrl)) {
+            return { value: href, source: SOURCES.HTML };
+        }
     }
 
-    // Nearly every site serves /favicon.ico even without declaring it.
-    return absolute('/favicon.ico', baseUrl);
+    // Nearly every site serves /favicon.ico even without declaring it, but
+    // guessing is not the same as the page declaring an icon.
+    return { value: '/favicon.ico', source: SOURCES.DERIVED };
 }
 
 function splitKeywords(value) {

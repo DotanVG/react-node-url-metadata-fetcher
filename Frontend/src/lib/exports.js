@@ -9,6 +9,8 @@ const COLUMNS = [
     ['publishedAt', 'Published'],
     ['type', 'Type'],
     ['status', 'HTTP Status'],
+    ['metadataScore', 'Metadata Score'],
+    ['missingTags', 'Missing Essential Tags'],
     ['error', 'Error'],
 ];
 
@@ -34,6 +36,10 @@ export function toCsv(results) {
             COLUMNS.map(([key]) => {
                 if (key === 'error') return result.error?.message ?? '';
                 if (key === 'status') return result.status ?? '';
+                if (key === 'metadataScore') return result.audit?.score ?? '';
+                if (key === 'missingTags') {
+                    return result.audit?.missingEssential?.join(' ') ?? '';
+                }
                 return result[key] ?? '';
             })
         );

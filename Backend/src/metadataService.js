@@ -1,3 +1,4 @@
+import { auditMetadata } from './auditMetadata.js';
 import { FETCH_CONCURRENCY } from './config.js';
 import { toMetadataError } from './errors.js';
 import { extractMetadata } from './extractMetadata.js';
@@ -12,13 +13,16 @@ export async function fetchMetadataForUrl(rawUrl) {
 
     try {
         const page = await fetchPage(rawUrl);
+        const metadata = extractMetadata(page.html, page.finalUrl);
+
         return {
             url: rawUrl,
             ok: true,
             finalUrl: page.finalUrl,
             status: page.status,
             elapsedMs: page.elapsedMs,
-            ...extractMetadata(page.html, page.finalUrl),
+            ...metadata,
+            audit: auditMetadata(metadata),
         };
     } catch (error) {
         const metadataError = toMetadataError(error, rawUrl);

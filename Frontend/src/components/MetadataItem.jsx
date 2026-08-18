@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiAlertCircle, FiExternalLink, FiImage } from 'react-icons/fi';
 
+import MetadataAudit from './MetadataAudit.jsx';
 import { hostnameOf, prettyUrl } from '../lib/urls.js';
 
 const ERROR_HINTS = {
@@ -126,6 +127,8 @@ const MetadataItem = ({ item }) => {
                         <span className="truncate">{prettyUrl(item.finalUrl || item.url)}</span>
                         <FiExternalLink size={13} className="shrink-0" aria-hidden="true" />
                     </a>
+
+                    <MetadataAudit audit={item.audit} result={item} />
                 </div>
             </div>
         </li>

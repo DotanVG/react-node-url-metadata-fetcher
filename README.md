@@ -36,6 +36,7 @@ Give it a URL. It fetches the page, parses the markup, and returns the metadata 
 - **No scheme needed.** `example.com` becomes `https://example.com/`.
 - **Nothing hides a failure.** A bad link comes back as its own error card with a plain-English reason; the rest of the batch is unaffected.
 - **Wakes the API on load.** The backend sits on a free tier that sleeps after 15 minutes. The app pings it the moment the page opens and shows exactly what is happening while it boots, so your first click is never the one that waits.
+- **Audits the tags, not just the values.** Every result carries a completeness breakdown: which tags the page publishes, which we had to infer, and which are absent — each with the tag needed to fix it. Collapsed by default, one click to open.
 - **Export anywhere.** Copy as JSON, or download JSON/CSV (properly escaped, and hardened against spreadsheet formula injection).
 - **Dark mode**, full keyboard support, and a layout that works on a phone.
 
@@ -46,6 +47,10 @@ Give it a URL. It fetches the page, parses the markup, and returns the metadata 
 | ![Results in light mode](docs/screenshots/results-light.png) | ![Results in dark mode](docs/screenshots/results-dark.png) |
 
 Successes and failures sit side by side, each failure carrying its own reason and error code.
+
+![The metadata audit panel expanded](docs/screenshots/audit-light.png)
+
+Expanding a result shows which tags the page publishes, which we inferred, and which are absent — with the tag needed to fix each gap.
 
 ## Architecture
 
@@ -167,14 +172,58 @@ Responds `200` with one result per URL, **in the order they were sent**:
       "canonicalUrl": "https://nodejs.org/en/about",
       "locale": "en-GB",
       "themeColor": "",
-      "keywords": []
+      "keywords": [],
+      "sources": {
+        "title": "og",
+        "description": "og",
+        "image": "og",
+        "imageAlt": "twitter",
+        "siteName": "derived",
+        "favicon": "html",
+        "type": null
+      },
+      "audit": {
+        "score": 71,
+        "published": 7,
+        "inferred": 1,
+        "missing": 5,
+        "total": 13,
+        "missingEssential": [],
+        "fields": [
+          {
+            "key": "title",
+            "label": "Title",
+            "tag": "og:title",
+            "importance": "essential",
+            "hint": "The headline every platform shows. Without og:title the page falls back to <title>.",
+            "status": "published",
+            "source": "og"
+          }
+        ]
+      }
     }
   ],
   "summary": { "requested": 1, "succeeded": 1, "failed": 0 }
 }
 ```
 
-Fields a page does not publish come back as empty strings rather than being omitted, so every result has the same shape.
+Fields a page does not publish come back as empty strings rather than being omitted, so every result has the same shape. `sources` and `audit.fields` are abridged above — `sources` names every field, and `audit.fields` carries one entry per audited tag.
+
+### Metadata audit
+
+Each successful result carries an `audit` grading what the page publishes.
+
+**`sources`** names where each value actually came from: `og`, `twitter`, `jsonld`, `html`, or `derived`. That last one matters — `derived` means *we* worked the value out and the page never published it. `siteName` falls back to the hostname and `favicon` to `/favicon.ico`, so both are commonly `derived`.
+
+**`audit.fields[].status`** is one of:
+
+| Status | Meaning |
+| --- | --- |
+| `published` | The page declares this tag |
+| `inferred` | We filled it in; the page never said |
+| `missing` | Absent entirely |
+
+**`audit.fields[].importance`** is `essential` (title, description, image — the preview breaks without them), `recommended`, or `optional`. The score weights them 3 / 2 / 1 and gives an inferred value half credit, so a page cannot score well by publishing a dozen trivial tags and no `og:image`. `missingEssential` lists just the headline problems.
 
 A URL that could not be fetched is reported **in place**, not as a failed request:
 
@@ -259,7 +308,8 @@ Backend/
     config.js               every tunable, read from the environment
     urlSafety.js            URL parsing + SSRF guard
     fetchPage.js            safe fetch: redirects, timeout, size cap, charset
-    extractMetadata.js      OG → Twitter → JSON-LD → HTML extraction
+    extractMetadata.js      OG → Twitter → JSON-LD → HTML extraction, with provenance
+    auditMetadata.js        grades which tags a page publishes, infers or omits
     metadataService.js      bounded-concurrency batch runner
     errors.js               error codes and human-readable messages
   tests/                    Jest suites + in-process fixture site
@@ -267,7 +317,7 @@ Backend/
 Frontend/
   src/
     App.jsx                 composition and state
-    components/             presentational components
+    components/             presentational components, incl. the audit panel
     hooks/                  useBackendStatus (wake-up), useTheme, usePersistentUrls
     lib/                    api client, URL parsing, JSON/CSV export
     tests/                  Vitest suites
