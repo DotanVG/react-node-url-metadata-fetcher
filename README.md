@@ -76,7 +76,7 @@ The full image preview opens only after a click, keyboard activation or tap. Clo
 
 ## Quick start
 
-**Requirements:** Node.js 18 or newer (the backend relies on the built-in `fetch` and `AbortSignal.timeout`).
+**Requirements:** Node.js 22 or newer for local development and Netlify builds. The backend remains compatible with Node.js 18 or newer.
 
 ```sh
 git clone https://github.com/DotanVG/react-node-url-metadata-fetcher.git
