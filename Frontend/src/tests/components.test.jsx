@@ -97,6 +97,25 @@ describe('MetadataItem', () => {
         expect(screen.getByLabelText(/no preview image/i)).toBeInTheDocument();
     });
 
+    it('shows a centered full image on hover and supports a pinned preview', async () => {
+        const user = userEvent.setup();
+        render(<MetadataItem item={success} />);
+
+        const previewButton = screen.getByRole('button', {
+            name: /open full image for example title/i,
+        });
+
+        fireEvent.mouseEnter(previewButton);
+        expect(screen.getByTestId('full-image-preview')).toBeInTheDocument();
+
+        await user.click(previewButton);
+        expect(screen.getByRole('dialog', { name: /full image for example title/i })).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /close full image/i }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('full-image-preview')).not.toBeInTheDocument();
+    });
+
     it('says so plainly when a page has no title or description', () => {
         render(<MetadataItem item={{ ...success, title: '', description: '' }} />);
 
@@ -171,7 +190,7 @@ describe('ResultsSection', () => {
             />
         );
 
-        expect(screen.getByText('2 of 3 fetched · 1 failed')).toBeInTheDocument();
+        expect(screen.getByText('2 of 3 fetched, 1 failed')).toBeInTheDocument();
     });
 
     it('wires up the export buttons', async () => {
@@ -184,5 +203,22 @@ describe('ResultsSection', () => {
         expect(actions.onCopyJson).toHaveBeenCalled();
         expect(actions.onDownloadJson).toHaveBeenCalled();
         expect(actions.onDownloadCsv).toHaveBeenCalled();
+    });
+
+    it('switches between detailed list and compact grid layouts', async () => {
+        const user = userEvent.setup();
+        render(<ResultsSection results={results} summary={null} {...actions} />);
+
+        const listButton = screen.getByRole('button', { name: /list/i });
+        const gridButton = screen.getByRole('button', { name: /grid/i });
+
+        expect(listButton).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByText('a')).toBeInTheDocument();
+
+        await user.click(gridButton);
+
+        expect(gridButton).toHaveAttribute('aria-pressed', 'true');
+        expect(listButton).toHaveAttribute('aria-pressed', 'false');
+        expect(screen.queryByText('a')).not.toBeInTheDocument();
     });
 });

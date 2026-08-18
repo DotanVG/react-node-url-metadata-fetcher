@@ -6,13 +6,13 @@ const REPO_URL = 'https://github.com/DotanVG/react-node-url-metadata-fetcher';
 
 const Navbar = ({ theme, onToggleTheme, backend }) => (
     <header className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
                     URL Metadata Fetcher
                 </h1>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    See what any link looks like when it is shared.
+                    Inspect, audit and preview metadata from any public URL.
                 </p>
             </div>
 
@@ -30,7 +30,11 @@ const Navbar = ({ theme, onToggleTheme, backend }) => (
                     title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
                     className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
-                    {theme === 'dark' ? <FiSun size={20} /> : <FiMoon size={20} />}
+                    {theme === 'dark' ? (
+                        <FiSun size={20} aria-hidden="true" />
+                    ) : (
+                        <FiMoon size={20} aria-hidden="true" />
+                    )}
                 </button>
 
                 <a
@@ -41,7 +45,7 @@ const Navbar = ({ theme, onToggleTheme, backend }) => (
                     title="View this project on GitHub"
                     className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
-                    <FiGithub size={20} />
+                    <FiGithub size={20} aria-hidden="true" />
                 </a>
             </div>
         </div>

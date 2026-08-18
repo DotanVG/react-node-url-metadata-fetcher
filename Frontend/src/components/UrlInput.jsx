@@ -16,7 +16,7 @@ const UrlInput = ({ value, onChange, onAdd, onClear, onKeyDown, disabled }) => (
                 autoCorrect="off"
                 spellCheck="false"
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-9 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
-                placeholder="example.com — or paste several URLs at once"
+                placeholder="example.com, or paste several URLs at once"
                 value={value}
                 disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}

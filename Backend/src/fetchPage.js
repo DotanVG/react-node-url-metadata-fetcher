@@ -191,7 +191,7 @@ function decode(buffer, contentType) {
         try {
             return new TextDecoder(charset, { fatal: false }).decode(buffer);
         } catch {
-            // Unknown label — fall through to the next candidate.
+            // Unknown label. Fall through to the next candidate.
         }
     }
     return buffer.toString('utf8');

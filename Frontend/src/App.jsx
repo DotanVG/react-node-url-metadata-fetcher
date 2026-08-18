@@ -22,9 +22,11 @@ import { parseUrlList } from './lib/urls.js';
 const MAX_URLS = 20;
 
 const SAMPLE_URLS = [
-    'https://github.com/DotanVG/react-node-url-metadata-fetcher',
-    'https://developer.mozilla.org/en-US/docs/Web/HTML',
-    'https://react.dev',
+    'https://dotanv.vercel.app',
+    'https://orbital-breach.vercel.app',
+    'https://count-dawn.vercel.app',
+    'https://beat-em-pie.vercel.app',
+    'https://dotanv.itch.io',
 ];
 
 /** Strips any markup the remote page smuggled into its own metadata. */
@@ -68,7 +70,7 @@ function App() {
 
             if (accepted.length > 0) {
                 setUrls(nextUrls);
-                // A single addition speaks for itself — the chip appears right
+                // A single addition speaks for itself. The chip appears right
                 // there. Only a bulk paste is worth interrupting for.
                 if (accepted.length > 1) {
                     toast.success(`Added ${accepted.length} URLs`);
@@ -111,7 +113,7 @@ function App() {
 
     const loadSamples = useCallback(() => {
         setUrls(SAMPLE_URLS);
-        toast.info('Loaded a few sample URLs.');
+        toast.info('Loaded five DotanV projects.');
     }, [setUrls]);
 
     const runFetch = useCallback(
@@ -127,7 +129,7 @@ function App() {
                 setResults(payload.results.map(sanitizeResult));
                 setSummary(payload.summary ?? null);
 
-                // A clean run needs no toast — the results appear right below.
+                // A clean run needs no toast. The results appear right below.
                 // Only partial or total failure is worth interrupting for.
                 const { succeeded = 0, failed = 0 } = payload.summary ?? {};
                 if (failed > 0 && succeeded === 0) {
@@ -227,7 +229,7 @@ function App() {
         <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
             <Navbar theme={theme} onToggleTheme={toggleTheme} backend={backend} />
 
-            <main className="mx-auto w-full max-w-5xl flex-grow px-4 py-8">
+            <main className="mx-auto w-full max-w-7xl flex-grow px-4 py-8">
                 <ColdStartNotice
                     status={backend.status}
                     elapsedSeconds={backend.elapsedSeconds}

@@ -34,7 +34,7 @@ const CREDIT = {
 
 /**
  * The fields we grade, each with the tag an author would actually add to fix
- * it — the point of the audit is to be actionable, not just to keep score.
+ * it. The point of the audit is to be actionable, not just to keep score.
  */
 export const AUDITED_FIELDS = [
     {
@@ -70,7 +70,7 @@ export const AUDITED_FIELDS = [
         label: 'Content type',
         tag: 'og:type',
         importance: IMPORTANCE.RECOMMENDED,
-        hint: 'Tells platforms what this is — website, article, video — so they lay it out correctly.',
+        hint: 'Tells platforms whether this is a website, article or video so they lay it out correctly.',
     },
     {
         key: 'imageAlt',

@@ -18,9 +18,11 @@ const APP_URL = process.argv[2] ?? 'http://localhost:5173';
 const OUT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
 
 const SAMPLE_URLS = [
-    'https://nodejs.org/en/about',
-    'https://github.com/DotanVG/react-node-url-metadata-fetcher',
-    'https://nope-xyz.invalid',
+    'https://dotanv.vercel.app',
+    'https://orbital-breach.vercel.app',
+    'https://count-dawn.vercel.app',
+    'https://beat-em-pie.vercel.app',
+    'https://dotanv.itch.io',
 ].join(', ');
 
 const browser = await chromium.launch();

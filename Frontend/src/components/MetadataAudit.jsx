@@ -29,7 +29,7 @@ const GROUPS = [
 
 /**
  * Row appearance per status. A missing *essential* tag is the only thing that
- * earns a red mark — flagging an absent `theme-color` in the same red would
+ * earns a red mark. Flagging an absent `theme-color` in the same red would
  * train people to ignore the whole panel.
  */
 function presentation(status, importance) {
@@ -87,7 +87,7 @@ const Tally = ({ Icon, className, count, label }) => (
 
 /**
  * Collapsible breakdown of which metadata a page publishes, which we had to
- * infer, and which is absent — with the tag needed to fix each gap.
+ * infer, and which is absent, with the tag needed to fix each gap.
  */
 const MetadataAudit = ({ audit, result }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -149,7 +149,7 @@ const MetadataAudit = ({ audit, result }) => {
 
             {audit.missingEssential.length > 0 && !isOpen && (
                 <p className="mt-2 px-1 text-xs text-rose-700 dark:text-rose-300">
-                    Missing {audit.missingEssential.join(', ')} — the preview will
+                    Missing {audit.missingEssential.join(', ')}. The preview will
                     look broken on most platforms.
                 </p>
             )}

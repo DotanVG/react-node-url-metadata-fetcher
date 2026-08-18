@@ -14,7 +14,7 @@ const ColdStartNotice = ({ status, elapsedSeconds, onRetry }) => {
                 <FiCoffee className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
                 <div>
                     <p className="font-semibold">
-                        Waking up the API — this takes up to a minute.
+                        Waking up the API. This takes up to a minute.
                     </p>
                     <p className="mt-1">
                         The backend runs on a free tier that sleeps after 15 minutes

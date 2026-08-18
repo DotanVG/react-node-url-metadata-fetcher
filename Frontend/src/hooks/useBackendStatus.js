@@ -93,7 +93,7 @@ export function useBackendStatus() {
         [clearPendingRetry]
     );
 
-    // Kick off the wake-up immediately on mount — before the user has typed
+    // Kick off the wake-up immediately on mount, before the user has typed
     // anything, so the server warms up while they work.
     useEffect(() => {
         wake();

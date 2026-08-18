@@ -7,8 +7,8 @@ const MAX_TEXT_LENGTH = 1000;
  * itself useful: a title that came from `<title>` rather than `og:title` still
  * renders, but it is not what the page told social platforms to show.
  *
- * `derived` means we worked the value out ourselves — the page never published
- * it — so it must never be presented as something the author provided.
+ * `derived` means we worked the value out ourselves. The page never published
+ * it, so it must never be presented as something the author provided.
  */
 export const SOURCES = {
     OG: 'og',
@@ -68,7 +68,7 @@ export function extractMetadata(html, baseUrl) {
         [meta('meta[name="twitter:image:alt"]'), SOURCES.TWITTER]
     );
 
-    // The hostname is a fallback, not something the page published — hence
+    // The hostname is a fallback, not something the page published. Hence
     // `derived`, so an audit never credits the page for it.
     const siteName = pick(
         [meta('meta[property="og:site_name"]'), SOURCES.OG],
@@ -139,7 +139,7 @@ const withValue = (field, value) => ({ value, source: field.source });
 
 const isEmpty = (value) => (Array.isArray(value) ? value.length === 0 : !value);
 
-/** Collapses whitespace and trims — page titles love stray newlines. */
+/** Collapses whitespace and trims because page titles love stray newlines. */
 function clean(value) {
     if (typeof value !== 'string') return '';
     return value.replace(/\s+/g, ' ').trim();

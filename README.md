@@ -1,6 +1,6 @@
 # 🌐 URL Metadata Fetcher
 
-**See what any link looks like when it is shared.** Paste one URL or twenty, and get back the title, description, preview image, favicon and more — the same metadata Slack, X and iMessage use to build a link preview.
+**Inspect, preview and audit the metadata behind any public URL.** Fetch one page or a batch of twenty, compare the tags each page publishes, inspect full-size preview images and export clean JSON or CSV.
 
 [![CI](https://github.com/DotanVG/react-node-url-metadata-fetcher/actions/workflows/ci.yml/badge.svg)](https://github.com/DotanVG/react-node-url-metadata-fetcher/actions/workflows/ci.yml)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/22f29d3c-e231-402e-ae86-99a91a822780/deploy-status)](https://app.netlify.com/sites/react-node-url-mdata-fetch-dotanv/deploys)
@@ -24,33 +24,33 @@
 - [Deployment](#deployment)
 - [Project layout](#project-layout)
 - [Contributing](#contributing)
-- [Origin](#origin)
 - [License](#license)
 
 ## What it does
 
-Give it a URL. It fetches the page, parses the markup, and returns the metadata that page publishes about itself — preferring **Open Graph**, then **Twitter Cards**, then **JSON-LD**, then plain HTML, which is the order publishers actually curate.
+Give it a URL. It fetches the page, parses the markup and returns the metadata that page publishes about itself. Extraction prefers **Open Graph**, then **Twitter Cards**, then **JSON-LD**, then plain HTML, which is the order publishers usually curate.
 
 - **One URL is enough.** Add a single link or batch up to 20.
-- **Paste a whole list.** Newlines, commas, semicolons or spaces — all get split into separate URLs.
+- **Paste a whole list.** Newlines, commas, semicolons and spaces are split into separate URLs.
 - **No scheme needed.** `example.com` becomes `https://example.com/`.
 - **Nothing hides a failure.** A bad link comes back as its own error card with a plain-English reason; the rest of the batch is unaffected.
 - **Wakes the API on load.** The backend sits on a free tier that sleeps after 15 minutes. The app pings it the moment the page opens and shows exactly what is happening while it boots, so your first click is never the one that waits.
-- **Audits the tags, not just the values.** Every result carries a completeness breakdown: which tags the page publishes, which we had to infer, and which are absent — each with the tag needed to fix it. Collapsed by default, one click to open.
+- **Audits the tags, not just the values.** Every result carries a completeness breakdown showing which tags the page publishes, which values were inferred and which tags are absent. Each gap includes the tag needed to fix it.
+- **Flexible image-first results.** Switch between a detailed list and a compact responsive grid. Hover, focus or tap a thumbnail to inspect the complete image in the center of the screen.
 - **Export anywhere.** Copy as JSON, or download JSON/CSV (properly escaped, and hardened against spreadsheet formula injection).
 - **Dark mode**, full keyboard support, and a layout that works on a phone.
 
 ## Screenshots
 
-| Light | Dark |
+| Image grid | Detailed list |
 | --- | --- |
-| ![Results in light mode](docs/screenshots/results-light.png) | ![Results in dark mode](docs/screenshots/results-dark.png) |
+| ![Responsive image grid](docs/screenshots/results-grid-dark.png) | ![Detailed result list](docs/screenshots/results-list-dark.png) |
 
-Successes and failures sit side by side, each failure carrying its own reason and error code.
+The grid keeps preview images prominent with only the title, site and score below each image. The list view exposes descriptions, timing, destination links and the complete metadata audit.
 
-![The metadata audit panel expanded](docs/screenshots/audit-light.png)
+![Centered full image preview](docs/screenshots/image-preview.png)
 
-Expanding a result shows which tags the page publishes, which we inferred, and which are absent — with the tag needed to fix each gap.
+The full image preview works with a mouse, keyboard or touch. On mobile, the grid collapses to one column and a tap pins the preview until it is closed.
 
 ## Architecture
 
@@ -70,9 +70,9 @@ Expanding a result shows which tags the page publishes, which we inferred, and w
                                                               the public web
 ```
 
-**Backend** — Node 18+, Express 4, Cheerio. No database; every request is stateless.
+**Backend:** Node 18+, Express 4, Cheerio. No database; every request is stateless.
 
-**Frontend** — React 18, Vite 6, Tailwind CSS 3. Uses the platform `fetch`, so there is no HTTP client dependency.
+**Frontend:** React 18, Vite 6, Tailwind CSS 3. Uses the platform `fetch`, so there is no HTTP client dependency.
 
 ## Quick start
 
@@ -130,7 +130,7 @@ Every knob is an environment variable; see `Backend/.env.example` and `Frontend/
 
 ### `GET /`
 
-Describes the service — endpoints and current limits.
+Describes the service, its endpoints and current limits.
 
 ### `GET /health`
 
@@ -160,7 +160,7 @@ Responds `200` with one result per URL, **in the order they were sent**:
       "finalUrl": "https://nodejs.org/en/about",
       "status": 200,
       "elapsedMs": 175,
-      "title": "Node.js — About Node.js®",
+      "title": "Node.js | About Node.js®",
       "description": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
       "image": "https://nodejs.org/en/next-data/og/announcement/Node.js%20%E2%80%94%20About%20Node.js%C2%AE",
       "imageAlt": "The Node.js Hexagon Logo",
@@ -207,13 +207,13 @@ Responds `200` with one result per URL, **in the order they were sent**:
 }
 ```
 
-Fields a page does not publish come back as empty strings rather than being omitted, so every result has the same shape. `sources` and `audit.fields` are abridged above — `sources` names every field, and `audit.fields` carries one entry per audited tag.
+Fields a page does not publish come back as empty strings rather than being omitted, so every result has the same shape. `sources` and `audit.fields` are abridged above. `sources` names every field, and `audit.fields` carries one entry per audited tag.
 
 ### Metadata audit
 
 Each successful result carries an `audit` grading what the page publishes.
 
-**`sources`** names where each value actually came from: `og`, `twitter`, `jsonld`, `html`, or `derived`. That last one matters — `derived` means *we* worked the value out and the page never published it. `siteName` falls back to the hostname and `favicon` to `/favicon.ico`, so both are commonly `derived`.
+**`sources`** names where each value actually came from: `og`, `twitter`, `jsonld`, `html`, or `derived`. That last one matters. `derived` means *we* worked the value out and the page never published it. `siteName` falls back to the hostname and `favicon` to `/favicon.ico`, so both are commonly `derived`.
 
 **`audit.fields[].status`** is one of:
 
@@ -223,7 +223,7 @@ Each successful result carries an `audit` grading what the page publishes.
 | `inferred` | We filled it in; the page never said |
 | `missing` | Absent entirely |
 
-**`audit.fields[].importance`** is `essential` (title, description, image — the preview breaks without them), `recommended`, or `optional`. The score weights them 3 / 2 / 1 and gives an inferred value half credit, so a page cannot score well by publishing a dozen trivial tags and no `og:image`. `missingEssential` lists just the headline problems.
+**`audit.fields[].importance`** is `essential` (title, description and image; the preview breaks without them), `recommended`, or `optional`. The score weights them 3 / 2 / 1 and gives an inferred value half credit, so a page cannot score well by publishing a dozen trivial tags and no `og:image`. `missingEssential` lists just the headline problems.
 
 A URL that could not be fetched is reported **in place**, not as a failed request:
 
@@ -240,7 +240,7 @@ A URL that could not be fetched is reported **in place**, not as a failed reques
 }
 ```
 
-A malformed *request* — a missing `urls` key, a non-array, an empty batch, an oversized batch — returns `400` with an `error` object. Exceeding the rate limit returns `429` with `retryAfterSeconds`.
+A malformed *request*, such as a missing `urls` key, a non-array, an empty batch or an oversized batch, returns `400` with an `error` object. Exceeding the rate limit returns `429` with `retryAfterSeconds`.
 
 ```sh
 curl -X POST https://react-node-url-metadata-fetcher.onrender.com/fetch-metadata \
@@ -262,7 +262,7 @@ Every failure carries a stable `code` and a message written for a person, not a 
 | `TIMEOUT` | Exceeded `FETCH_TIMEOUT_MS` |
 | `TOO_MANY_REDIRECTS` | More hops than `MAX_REDIRECTS` |
 | `HTTP_ERROR` | Non-2xx response (carries `status`) |
-| `UNSUPPORTED_CONTENT_TYPE` | Not a web page — an image, PDF, binary… |
+| `UNSUPPORTED_CONTENT_TYPE` | Not a web page, such as an image, PDF or binary file |
 | `RESPONSE_TOO_LARGE` | Body exceeded `MAX_HTML_BYTES` |
 | `NETWORK_ERROR` | Connection reset, TLS failure, and similar |
 
@@ -288,13 +288,13 @@ This service fetches arbitrary user-supplied URLs, which is exactly the shape of
 
 And around the edges: Helmet security headers, an origin allowlist for CORS, per-IP rate limiting, a 100 KB request body cap, output sanitising with DOMPurify before any remote text is rendered, `javascript:`/`data:` image URLs stripped server-side, and CSV export hardened against spreadsheet formula injection.
 
-> **A note on CSRF:** earlier versions used `csurf`, which has been deprecated since 2022. It was removed rather than replaced. This API is stateless and credential-free — it has no cookies, sessions or logins to forge a request against — so a CSRF token protected nothing while adding a required round-trip that broke on cross-site cookie policies. The origin allowlist and rate limiting do the work that actually applies here.
+> **A note on CSRF:** earlier versions used `csurf`, which has been deprecated since 2022. It was removed rather than replaced. This API is stateless and credential-free. It has no cookies, sessions or logins to forge a request against, so a CSRF token protected nothing while adding a required round-trip that broke on cross-site cookie policies. The origin allowlist and rate limiting provide the protections that apply here.
 
 ## Deployment
 
-**Backend → Render.** `render.yaml` at the repo root is a ready blueprint: root directory `Backend`, health check at `/health`. Set `ALLOWED_ORIGINS` to your frontend's origin.
+**Backend to Render.** `render.yaml` at the repo root is a ready blueprint with `Backend` as the root directory and `/health` as the health check. Set `ALLOWED_ORIGINS` to your frontend's origin.
 
-**Frontend → Netlify.** `netlify.toml` at the repo root sets the base directory, build command, SPA redirect, security headers and `VITE_API_URL`.
+**Frontend to Netlify.** The Netlify site builds from `Frontend` with `npm run build` and publishes `Frontend/dist`. `Frontend/public/_redirects` provides the SPA fallback from inside the published output. Set `VITE_API_URL` in the Netlify environment.
 
 Free-tier instances sleep after inactivity, which is why the app pings `/health` on load and tells the user what is happening instead of appearing broken.
 
@@ -325,7 +325,7 @@ Frontend/
 
 ## Contributing
 
-Issues and pull requests are welcome — bug reports, additional metadata sources, and better error messages especially.
+Issues and pull requests are welcome, especially bug reports, additional metadata sources and clearer error messages.
 
 ```sh
 cd Backend  && npm test
@@ -334,16 +334,7 @@ cd Frontend && npm run lint && npm test && npm run build
 
 CI runs exactly those checks on every pull request.
 
-To refresh the README screenshots, start both servers and run:
-
-```sh
-npx playwright install chromium
-node docs/capture-screenshots.mjs
-```
-
-## Origin
-
-This began in August 2024 as a full-stack home assignment for [Tolstoy](https://www.gotolstoy.com): fetch metadata for a minimum of three URLs and display it. It has since been rebuilt as a general-purpose tool — the three-URL minimum is gone, the backend was rewritten around SSRF-safe fetching and structured per-URL errors, and the frontend was redesigned. The original assignment version remains in the git history.
+To refresh the README screenshots, open the deployed app in Chrome, load the five sample projects and capture the grid, list, full-image and mobile states in `docs/screenshots`.
 
 ## License
 

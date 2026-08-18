@@ -3,7 +3,7 @@ const LOOKS_LIKE_DOMAIN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0
 
 /**
  * Turns whatever the user typed into a URL we can send to the API, or null if
- * it is not salvageable. "example.com" becomes "https://example.com/" — people
+ * it is not salvageable. "example.com" becomes "https://example.com/" because people
  * rarely type the scheme, and rejecting them for it is just rude.
  */
 export function normalizeUrl(input) {

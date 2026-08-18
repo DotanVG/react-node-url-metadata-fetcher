@@ -16,7 +16,7 @@ const COLUMNS = [
 
 /**
  * Escapes one CSV field per RFC 4180, and neutralises spreadsheet formula
- * injection — page titles are attacker-controlled, and "=HYPERLINK(...)" in a
+ * injection. Page titles are attacker-controlled, and "=HYPERLINK(...)" in a
  * downloaded CSV is a real way to hurt whoever opens it.
  */
 export function escapeCsvField(value) {

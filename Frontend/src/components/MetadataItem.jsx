@@ -1,23 +1,21 @@
-import { useState } from 'react';
-import { FiAlertCircle, FiExternalLink, FiImage } from 'react-icons/fi';
+import { FiAlertCircle, FiExternalLink } from 'react-icons/fi';
 
 import MetadataAudit from './MetadataAudit.jsx';
+import ResultImage from './ResultImage.jsx';
 import { hostnameOf, prettyUrl } from '../lib/urls.js';
 
 const ERROR_HINTS = {
     BLOCKED_HOST: 'Private and internal addresses are refused on purpose.',
     HTTP_ERROR: 'Some sites deliberately block automated visitors.',
     UNSUPPORTED_CONTENT_TYPE: 'Only web pages carry metadata worth showing.',
-    TIMEOUT: 'Try again — slow sites sometimes answer on a second attempt.',
+    TIMEOUT: 'Try again. Slow sites sometimes answer on a second attempt.',
     DNS_ERROR: 'Check the spelling of the domain.',
 };
 
-const MetadataItem = ({ item }) => {
-    const [imageFailed, setImageFailed] = useState(false);
-
+const MetadataItem = ({ item, layout = 'list' }) => {
     if (!item.ok) {
         return (
-            <li className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
+            <li className="h-full rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
                 <div className="flex items-start gap-3">
                     <FiAlertCircle
                         className="mt-0.5 shrink-0 text-rose-600 dark:text-rose-400"
@@ -45,33 +43,22 @@ const MetadataItem = ({ item }) => {
         );
     }
 
-    const showImage = item.image && !imageFailed;
+    const isGrid = layout === 'grid';
+    const destination = item.finalUrl || item.url;
 
     return (
-        <li className="overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
-            <div className="flex flex-col sm:flex-row">
-                <div className="sm:w-56 sm:shrink-0">
-                    {showImage ? (
-                        <img
-                            src={item.image}
-                            alt={item.imageAlt || item.title || 'Preview image'}
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                            onError={() => setImageFailed(true)}
-                            className="h-40 w-full bg-slate-100 object-cover sm:h-full sm:min-h-[9rem] dark:bg-slate-800"
-                        />
-                    ) : (
-                        <div className="flex h-40 w-full items-center justify-center bg-slate-100 sm:h-full sm:min-h-[9rem] dark:bg-slate-800">
-                            <FiImage
-                                className="text-slate-400 dark:text-slate-600"
-                                size={28}
-                                aria-label="No preview image"
-                            />
-                        </div>
-                    )}
+        <li className="h-full overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
+            <div className={isGrid ? 'flex h-full flex-col' : 'flex flex-col md:flex-row'}>
+                <div className={isGrid ? 'w-full' : 'md:w-72 md:shrink-0 lg:w-80'}>
+                    <ResultImage
+                        image={item.image}
+                        alt={item.imageAlt}
+                        title={item.title || item.siteName}
+                        layout={layout}
+                    />
                 </div>
 
-                <div className="min-w-0 flex-1 p-4">
+                <div className={`min-w-0 flex-1 ${isGrid ? 'p-4' : 'p-4 sm:p-5'}`}>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                         {item.favicon && (
                             <img
@@ -90,27 +77,40 @@ const MetadataItem = ({ item }) => {
                         <span className="font-medium">
                             {item.siteName || hostnameOf(item.finalUrl || item.url)}
                         </span>
-                        {item.type && (
+                        {!isGrid && item.type && (
                             <span className="rounded bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">
                                 {item.type}
                             </span>
                         )}
-                        {typeof item.elapsedMs === 'number' && (
+                        {!isGrid && typeof item.elapsedMs === 'number' && (
                             <span className="tabular-nums">{item.elapsedMs} ms</span>
+                        )}
+                        {isGrid && Number.isFinite(item.audit?.score) && (
+                            <span className="ml-auto rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                                {item.audit.score}% metadata
+                            </span>
                         )}
                     </div>
 
-                    <h4 className="mt-2 text-lg font-semibold leading-snug text-slate-900 dark:text-white">
+                    <h4
+                        className={`mt-2 font-semibold leading-snug text-slate-900 dark:text-white ${
+                            isGrid ? 'line-clamp-2 text-base' : 'text-lg'
+                        }`}
+                    >
                         {item.title || <span className="italic text-slate-400">No title found</span>}
                     </h4>
 
-                    <p className="mt-1.5 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
-                        {item.description || (
-                            <span className="italic text-slate-400">No description found</span>
-                        )}
-                    </p>
+                    {!isGrid && (
+                        <p className="mt-1.5 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
+                            {item.description || (
+                                <span className="italic text-slate-400">
+                                    No description found
+                                </span>
+                            )}
+                        </p>
+                    )}
 
-                    {(item.author || item.publishedAt) && (
+                    {!isGrid && (item.author || item.publishedAt) && (
                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                             {item.author}
                             {item.author && item.publishedAt ? ' · ' : ''}
@@ -119,16 +119,16 @@ const MetadataItem = ({ item }) => {
                     )}
 
                     <a
-                        href={item.finalUrl || item.url}
+                        href={destination}
                         target="_blank"
                         rel="noopener noreferrer nofollow"
-                        className="mt-3 inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                        className={`${isGrid ? 'mt-2 text-xs' : 'mt-3 text-sm'} inline-flex max-w-full items-center gap-1.5 font-medium text-indigo-600 hover:underline dark:text-indigo-400`}
                     >
-                        <span className="truncate">{prettyUrl(item.finalUrl || item.url)}</span>
+                        <span className="truncate">{prettyUrl(destination)}</span>
                         <FiExternalLink size={13} className="shrink-0" aria-hidden="true" />
                     </a>
 
-                    <MetadataAudit audit={item.audit} result={item} />
+                    {!isGrid && <MetadataAudit audit={item.audit} result={item} />}
                 </div>
             </div>
         </li>

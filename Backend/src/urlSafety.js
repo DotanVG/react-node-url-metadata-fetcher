@@ -39,7 +39,7 @@ function isBlockedIpv6(ip) {
     const normalized = ip.toLowerCase().split('%')[0]; // strip zone index
 
     // IPv4-mapped (::ffff:1.2.3.4) and NAT64 (64:ff9b::1.2.3.4) addresses are
-    // really IPv4 in a trench coat — unwrap and judge them as such.
+    // really IPv4 in a trench coat, so unwrap and judge them as such.
     const embedded = normalized.match(/(\d+\.\d+\.\d+\.\d+)$/);
     if (embedded && net.isIPv4(embedded[1])) {
         return isBlockedIpv4(embedded[1]);

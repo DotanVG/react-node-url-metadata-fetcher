@@ -59,7 +59,7 @@ describe('App', () => {
         await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/API ready/i));
     });
 
-    it('fetches metadata for a single URL — there is no three-URL minimum', async () => {
+    it('fetches metadata for a single URL with no three-URL minimum', async () => {
         const user = userEvent.setup();
         const fetchMock = mockApi(() =>
             Promise.resolve(
@@ -189,7 +189,7 @@ describe('App', () => {
 
         await waitFor(() => expect(screen.getByText('Good Page')).toBeInTheDocument());
         expect(screen.getByText('The page was not found (404).')).toBeInTheDocument();
-        expect(screen.getByText('1 of 2 fetched · 1 failed')).toBeInTheDocument();
+        expect(screen.getByText('1 of 2 fetched, 1 failed')).toBeInTheDocument();
     });
 
     it("surfaces the API's error message when the request fails", async () => {
@@ -246,7 +246,9 @@ describe('App', () => {
 
         await user.click(screen.getByRole('button', { name: /try some examples/i }));
 
-        expect(screen.getByText('3 URLs queued')).toBeInTheDocument();
+        expect(screen.getByText('5 URLs queued')).toBeInTheDocument();
+        expect(screen.getByTitle('https://dotanv.vercel.app')).toBeInTheDocument();
+        expect(screen.getByTitle('https://dotanv.itch.io')).toBeInTheDocument();
     });
 
     it('restores the queued URLs after a reload', async () => {

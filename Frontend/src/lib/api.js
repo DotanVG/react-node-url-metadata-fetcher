@@ -93,7 +93,7 @@ function asApiError(error) {
 
     if (error?.name === 'AbortError') {
         return new ApiError(
-            'The request took too long and was cancelled. The API may still be starting up — try again in a moment.',
+            'The request took too long and was cancelled. The API may still be starting up. Try again in a moment.',
             { code: 'TIMEOUT' }
         );
     }

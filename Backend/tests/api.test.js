@@ -64,7 +64,7 @@ describe('unknown routes', () => {
 });
 
 describe('POST /fetch-metadata validation', () => {
-    it('accepts a single URL — there is no minimum batch size', async () => {
+    it('accepts a single URL because there is no minimum batch size', async () => {
         const response = await post([fixture.url('/bare')]);
 
         expect(response.status).toBe(200);
