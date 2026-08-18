@@ -23,6 +23,8 @@
 - [Security](#security)
 - [Deployment](#deployment)
 - [Project layout](#project-layout)
+- [Contributing](#contributing)
+- [Origin](#origin)
 - [License](#license)
 
 ## What it does
@@ -33,7 +35,7 @@ Give it a URL. It fetches the page, parses the markup, and returns the metadata 
 - **Paste a whole list.** Newlines, commas, semicolons or spaces — all get split into separate URLs.
 - **No scheme needed.** `example.com` becomes `https://example.com/`.
 - **Nothing hides a failure.** A bad link comes back as its own error card with a plain-English reason; the rest of the batch is unaffected.
-- **Wakes the API on load.** The backend sits on a free tier that sleeps after 15 minutes. The app pings it the moment the page opens, and shows exactly what is happening while it boots — so the user's first click is never the one that waits.
+- **Wakes the API on load.** The backend sits on a free tier that sleeps after 15 minutes. The app pings it the moment the page opens and shows exactly what is happening while it boots, so your first click is never the one that waits.
 - **Export anywhere.** Copy as JSON, or download JSON/CSV (properly escaped, and hardened against spreadsheet formula injection).
 - **Dark mode**, full keyboard support, and a layout that works on a phone.
 
@@ -44,8 +46,6 @@ Give it a URL. It fetches the page, parses the markup, and returns the metadata 
 | ![Results in light mode](docs/screenshots/results-light.png) | ![Results in dark mode](docs/screenshots/results-dark.png) |
 
 Successes and failures sit side by side, each failure carrying its own reason and error code.
-
-<sub>Regenerate these with both servers running: `npx playwright install chromium && node docs/capture-screenshots.mjs`</sub>
 
 ## Architecture
 
@@ -150,29 +150,31 @@ Responds `200` with one result per URL, **in the order they were sent**:
 {
   "results": [
     {
-      "url": "https://nodejs.org",
+      "url": "https://nodejs.org/en/about",
       "ok": true,
-      "finalUrl": "https://nodejs.org/en",
+      "finalUrl": "https://nodejs.org/en/about",
       "status": 200,
-      "elapsedMs": 313,
-      "title": "Node.js — Run JavaScript Everywhere",
-      "description": "Node.js® is a free, open-source, cross-platform JavaScript runtime…",
-      "image": "https://nodejs.org/static/images/og-image.png",
-      "imageAlt": "",
-      "siteName": "Node.js",
+      "elapsedMs": 175,
+      "title": "Node.js — About Node.js®",
+      "description": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+      "image": "https://nodejs.org/en/next-data/og/announcement/Node.js%20%E2%80%94%20About%20Node.js%C2%AE",
+      "imageAlt": "The Node.js Hexagon Logo",
+      "siteName": "nodejs.org",
       "favicon": "https://nodejs.org/static/images/favicons/favicon.png",
-      "type": "website",
+      "type": "",
       "author": "",
       "publishedAt": "",
-      "canonicalUrl": "https://nodejs.org/en",
-      "locale": "en",
-      "themeColor": "#5fa04e",
+      "canonicalUrl": "https://nodejs.org/en/about",
+      "locale": "en-GB",
+      "themeColor": "",
       "keywords": []
     }
   ],
   "summary": { "requested": 1, "succeeded": 1, "failed": 0 }
 }
 ```
+
+Fields a page does not publish come back as empty strings rather than being omitted, so every result has the same shape.
 
 A URL that could not be fetched is reported **in place**, not as a failed request:
 
@@ -194,7 +196,7 @@ A malformed *request* — a missing `urls` key, a non-array, an empty batch, an 
 ```sh
 curl -X POST https://react-node-url-metadata-fetcher.onrender.com/fetch-metadata \
   -H 'Content-Type: application/json' \
-  -d '{"urls":["https://nodejs.org"]}'
+  -d '{"urls":["https://nodejs.org/en/about"]}'
 ```
 
 ## Error codes
@@ -270,6 +272,28 @@ Frontend/
     lib/                    api client, URL parsing, JSON/CSV export
     tests/                  Vitest suites
 ```
+
+## Contributing
+
+Issues and pull requests are welcome — bug reports, additional metadata sources, and better error messages especially.
+
+```sh
+cd Backend  && npm test
+cd Frontend && npm run lint && npm test && npm run build
+```
+
+CI runs exactly those checks on every pull request.
+
+To refresh the README screenshots, start both servers and run:
+
+```sh
+npx playwright install chromium
+node docs/capture-screenshots.mjs
+```
+
+## Origin
+
+This began in August 2024 as a full-stack home assignment for [Tolstoy](https://www.gotolstoy.com): fetch metadata for a minimum of three URLs and display it. It has since been rebuilt as a general-purpose tool — the three-URL minimum is gone, the backend was rewritten around SSRF-safe fetching and structured per-URL errors, and the frontend was redesigned. The original assignment version remains in the git history.
 
 ## License
 
