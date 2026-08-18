@@ -1,0 +1,3 @@
+# SPA fallback. Netlify reads this from the publish directory, so it applies
+# even if netlify.toml is ignored because of a base-directory mismatch.
+/*    /index.html   200
