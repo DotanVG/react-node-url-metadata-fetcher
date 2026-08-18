@@ -3,12 +3,15 @@ import { FiGrid, FiList } from 'react-icons/fi';
 
 import MetadataItem from './MetadataItem.jsx';
 import ResultActions from './ResultActions.jsx';
+import useMediaQuery from '../hooks/useMediaQuery.js';
 
 const layoutButtonClasses =
     'inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500';
 
 const ResultsSection = ({ results, summary, ...actions }) => {
     const [layout, setLayout] = useState('list');
+    const isDesktop = useMediaQuery('(min-width: 640px)');
+    const effectiveLayout = isDesktop ? layout : 'list';
 
     return (
         <section className="mt-10" aria-labelledby="results-heading">
@@ -29,11 +32,12 @@ const ResultsSection = ({ results, summary, ...actions }) => {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between lg:justify-end">
-                    <div
-                        className="inline-flex w-fit rounded-lg border border-slate-300 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800"
-                        role="group"
-                        aria-label="Result layout"
-                    >
+                    {isDesktop && (
+                        <div
+                            className="inline-flex w-fit rounded-lg border border-slate-300 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800"
+                            role="group"
+                            aria-label="Result layout"
+                        >
                         <button
                             type="button"
                             onClick={() => setLayout('list')}
@@ -58,14 +62,15 @@ const ResultsSection = ({ results, summary, ...actions }) => {
                         >
                             <FiGrid size={15} aria-hidden="true" /> Grid
                         </button>
-                    </div>
+                        </div>
+                    )}
                     <ResultActions {...actions} />
                 </div>
             </div>
 
             <ul
                 className={
-                    layout === 'grid'
+                    effectiveLayout === 'grid'
                         ? 'grid gap-5 sm:grid-cols-2 xl:grid-cols-3'
                         : 'space-y-4'
                 }
@@ -74,7 +79,7 @@ const ResultsSection = ({ results, summary, ...actions }) => {
                     <MetadataItem
                         key={`${item.url}-${index}`}
                         item={item}
-                        layout={layout}
+                        layout={effectiveLayout}
                     />
                 ))}
             </ul>

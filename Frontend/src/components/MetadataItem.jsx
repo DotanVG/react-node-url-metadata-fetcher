@@ -1,6 +1,8 @@
-import { FiAlertCircle, FiExternalLink } from 'react-icons/fi';
+import { useRef, useState } from 'react';
+import { FiAlertCircle, FiExternalLink, FiMaximize2 } from 'react-icons/fi';
 
 import MetadataAudit from './MetadataAudit.jsx';
+import ModalDialog from './ModalDialog.jsx';
 import ResultImage from './ResultImage.jsx';
 import { hostnameOf, prettyUrl } from '../lib/urls.js';
 
@@ -12,7 +14,10 @@ const ERROR_HINTS = {
     DNS_ERROR: 'Check the spelling of the domain.',
 };
 
-const MetadataItem = ({ item, layout = 'list' }) => {
+const MetadataItem = ({ item, layout = 'list', imagePreviewEnabled = true }) => {
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const detailsTriggerRef = useRef(null);
+
     if (!item.ok) {
         return (
             <li className="h-full rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
@@ -47,14 +52,27 @@ const MetadataItem = ({ item, layout = 'list' }) => {
     const destination = item.finalUrl || item.url;
 
     return (
-        <li className="h-full overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
-            <div className={isGrid ? 'flex h-full flex-col' : 'flex flex-col md:flex-row'}>
-                <div className={isGrid ? 'w-full' : 'md:w-72 md:shrink-0 lg:w-80'}>
+        <li className="relative h-full overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
+            {isGrid && (
+                <div
+                    onClick={() => setDetailsOpen(true)}
+                    aria-hidden="true"
+                    className="absolute inset-0 z-0 cursor-pointer rounded-xl"
+                />
+            )}
+
+            <div
+                className={`${isGrid ? 'pointer-events-none relative z-10 flex h-full flex-col' : 'flex flex-col md:flex-row'}`}
+            >
+                <div
+                    className={`${isGrid ? 'pointer-events-auto w-full' : 'md:w-72 md:shrink-0 lg:w-80'}`}
+                >
                     <ResultImage
                         image={item.image}
                         alt={item.imageAlt}
                         title={item.title || item.siteName}
                         layout={layout}
+                        interactive={imagePreviewEnabled}
                     />
                 </div>
 
@@ -84,11 +102,6 @@ const MetadataItem = ({ item, layout = 'list' }) => {
                         )}
                         {!isGrid && typeof item.elapsedMs === 'number' && (
                             <span className="tabular-nums">{item.elapsedMs} ms</span>
-                        )}
-                        {isGrid && Number.isFinite(item.audit?.score) && (
-                            <span className="ml-auto rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
-                                {item.audit.score}% metadata
-                            </span>
                         )}
                     </div>
 
@@ -122,15 +135,62 @@ const MetadataItem = ({ item, layout = 'list' }) => {
                         href={destination}
                         target="_blank"
                         rel="noopener noreferrer nofollow"
-                        className={`${isGrid ? 'mt-2 text-xs' : 'mt-3 text-sm'} inline-flex max-w-full items-center gap-1.5 font-medium text-indigo-600 hover:underline dark:text-indigo-400`}
+                        className={`${isGrid ? 'pointer-events-auto relative z-20 mt-2 text-xs' : 'mt-3 text-sm'} inline-flex max-w-full items-center gap-1.5 font-medium text-indigo-600 hover:underline dark:text-indigo-400`}
                     >
                         <span className="truncate">{prettyUrl(destination)}</span>
                         <FiExternalLink size={13} className="shrink-0" aria-hidden="true" />
                     </a>
 
+                    {isGrid && (
+                        <button
+                            ref={detailsTriggerRef}
+                            type="button"
+                            onClick={() => setDetailsOpen(true)}
+                            aria-label={`Open full details for ${item.title || item.siteName || destination}`}
+                            aria-haspopup="dialog"
+                            aria-expanded={detailsOpen}
+                            className="pointer-events-auto relative z-20 mt-4 flex w-full items-center justify-between gap-3 border-t border-slate-200 pt-3 text-left text-xs transition hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-800 dark:hover:text-indigo-300"
+                        >
+                            <span className="text-slate-500 dark:text-slate-400">
+                                Metadata completeness
+                            </span>
+                            <span className="ml-auto font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">
+                                {Number.isFinite(item.audit?.score)
+                                    ? `${item.audit.score}%`
+                                    : 'Not scored'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300">
+                                <FiMaximize2 size={13} aria-hidden="true" />
+                                View details
+                            </span>
+                        </button>
+                    )}
+
                     {!isGrid && <MetadataAudit audit={item.audit} result={item} />}
                 </div>
             </div>
+
+            {isGrid && (
+                <ModalDialog
+                    open={detailsOpen}
+                    onClose={() => setDetailsOpen(false)}
+                    label={`Full details for ${item.title || item.siteName || destination}`}
+                    closeLabel="Close full details"
+                    triggerRef={detailsTriggerRef}
+                    testId="full-details-dialog"
+                    panelClassName="w-full max-w-5xl overflow-hidden"
+                >
+                    <div className="max-h-[90vh] overflow-y-auto p-3 pt-14 sm:p-6 sm:pt-14">
+                        <ul>
+                            <MetadataItem
+                                item={item}
+                                layout="list"
+                                imagePreviewEnabled={false}
+                            />
+                        </ul>
+                    </div>
+                </ModalDialog>
+            )}
         </li>
     );
 };

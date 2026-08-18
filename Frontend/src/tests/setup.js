@@ -10,7 +10,7 @@ afterEach(() => {
 // jsdom implements neither of these, and several components rely on them.
 if (!window.matchMedia) {
     window.matchMedia = (query) => ({
-        matches: false,
+        matches: query === '(min-width: 640px)' ? window.innerWidth >= 640 : false,
         media: query,
         onchange: null,
         addListener: () => {},

@@ -97,7 +97,7 @@ describe('MetadataItem', () => {
         expect(screen.getByLabelText(/no preview image/i)).toBeInTheDocument();
     });
 
-    it('shows a centered full image on hover and supports a pinned preview', async () => {
+    it('opens the full image only on click and closes from the backdrop or button', async () => {
         const user = userEvent.setup();
         render(<MetadataItem item={success} />);
 
@@ -106,10 +106,16 @@ describe('MetadataItem', () => {
         });
 
         fireEvent.mouseEnter(previewButton);
-        expect(screen.getByTestId('full-image-preview')).toBeInTheDocument();
+        expect(screen.queryByTestId('full-image-preview')).not.toBeInTheDocument();
 
         await user.click(previewButton);
-        expect(screen.getByRole('dialog', { name: /full image for example title/i })).toBeInTheDocument();
+        const dialog = screen.getByRole('dialog', { name: /full image for example title/i });
+        expect(dialog).toBeInTheDocument();
+
+        fireEvent.mouseDown(dialog);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        await user.click(previewButton);
 
         await user.click(screen.getByRole('button', { name: /close full image/i }));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -174,7 +180,15 @@ describe('TaggedUrls', () => {
 });
 
 describe('ResultsSection', () => {
-    const results = [{ url: 'https://a.dev', ok: true, title: 'A', description: 'a' }];
+    const results = [
+        {
+            url: 'https://a.dev',
+            ok: true,
+            title: 'A',
+            description: 'a',
+            audit: { score: 72 },
+        },
+    ];
     const actions = {
         onCopyJson: vi.fn(),
         onDownloadJson: vi.fn(),
@@ -220,5 +234,34 @@ describe('ResultsSection', () => {
         expect(gridButton).toHaveAttribute('aria-pressed', 'true');
         expect(listButton).toHaveAttribute('aria-pressed', 'false');
         expect(screen.queryByText('a')).not.toBeInTheDocument();
+        expect(screen.getByText('Metadata completeness')).toBeInTheDocument();
+        expect(screen.getByText('72%')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /open full details for a/i }));
+
+        expect(screen.getByRole('dialog', { name: /full details for a/i })).toBeInTheDocument();
+        expect(screen.getByText('a')).toBeInTheDocument();
+
+        fireEvent.mouseDown(screen.getByRole('dialog', { name: /full details for a/i }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('keeps the detailed list and removes the layout switch on mobile', () => {
+        vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+            matches: false,
+            media: query,
+            onchange: null,
+            addListener: () => {},
+            removeListener: () => {},
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            dispatchEvent: () => false,
+        }));
+
+        render(<ResultsSection results={results} summary={null} {...actions} />);
+
+        expect(screen.queryByRole('group', { name: /result layout/i })).not.toBeInTheDocument();
+        expect(screen.getByText('a')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /open full details/i })).not.toBeInTheDocument();
     });
 });

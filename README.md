@@ -36,7 +36,7 @@ Give it a URL. It fetches the page, parses the markup and returns the metadata t
 - **Nothing hides a failure.** A bad link comes back as its own error card with a plain-English reason; the rest of the batch is unaffected.
 - **Wakes the API on load.** The backend sits on a free tier that sleeps after 15 minutes. The app pings it the moment the page opens and shows exactly what is happening while it boots, so your first click is never the one that waits.
 - **Audits the tags, not just the values.** Every result carries a completeness breakdown showing which tags the page publishes, which values were inferred and which tags are absent. Each gap includes the tag needed to fix it.
-- **Flexible image-first results.** Switch between a detailed list and a compact responsive grid. Hover, focus or tap a thumbnail to inspect the complete image in the center of the screen.
+- **Flexible image-first results.** Switch between a detailed list and a compact desktop grid. Click or tap a thumbnail to inspect the complete image in the center of the screen.
 - **Export anywhere.** Copy as JSON, or download JSON/CSV (properly escaped, and hardened against spreadsheet formula injection).
 - **Dark mode**, full keyboard support, and a layout that works on a phone.
 
@@ -46,11 +46,11 @@ Give it a URL. It fetches the page, parses the markup and returns the metadata t
 | --- | --- |
 | ![Responsive image grid](docs/screenshots/results-grid-dark.png) | ![Detailed result list](docs/screenshots/results-list-dark.png) |
 
-The grid keeps preview images prominent with only the title, site and score below each image. The list view exposes descriptions, timing, destination links and the complete metadata audit.
+The grid keeps preview images prominent and shows metadata completeness on every card. Select the completeness row or the card body to open the full result and metadata audit. The list view exposes descriptions, timing, destination links and the complete audit directly.
 
 ![Centered full image preview](docs/screenshots/image-preview.png)
 
-The full image preview works with a mouse, keyboard or touch. On mobile, the grid collapses to one column and a tap pins the preview until it is closed.
+The full image preview opens only after a click, keyboard activation or tap. Close image and detail dialogs with their X button, the Escape key or a click outside the dialog. Mobile always uses the detailed list view.
 
 ## Architecture
 
