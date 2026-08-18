@@ -24,6 +24,7 @@
 - [Deployment](#deployment)
 - [Project layout](#project-layout)
 - [Contributing](#contributing)
+- [Origin](#origin)
 - [License](#license)
 
 ## What it does
@@ -70,13 +71,13 @@ The full image preview opens only after a click, keyboard activation or tap. Clo
                                                               the public web
 ```
 
-**Backend:** Node 18+, Express 4, Cheerio. No database; every request is stateless.
+**Backend:** Node.js 24 LTS+, Express 4, Cheerio. No database; every request is stateless.
 
 **Frontend:** React 18, Vite 6, Tailwind CSS 3. Uses the platform `fetch`, so there is no HTTP client dependency.
 
 ## Quick start
 
-**Requirements:** Node.js 22 or newer for local development and Netlify builds. The backend remains compatible with Node.js 18 or newer.
+**Requirements:** Node.js 24 LTS or newer. Both the frontend and backend declare Node 24+ in their `engines` fields; `.nvmrc` files select Node 24. Node 24 ships with npm 11, which is suitable for the included lockfiles.
 
 ```sh
 git clone https://github.com/DotanVG/react-node-url-metadata-fetcher.git
@@ -335,6 +336,10 @@ cd Frontend && npm run lint && npm test && npm run build
 CI runs exactly those checks on every pull request.
 
 To refresh the README screenshots, open the deployed app in Chrome, load the five sample projects and capture the grid, list, full-image and mobile states in `docs/screenshots`.
+
+## Origin
+
+This project began in August 2024 as a full-stack home assignment for [Tolstoy](https://www.gotolstoy.com): fetch metadata for at least three URLs and display it. It has since been rebuilt as a general-purpose tool—the three-URL minimum is gone, the backend was redesigned around SSRF-safe fetching and structured per-URL errors, and the frontend was substantially expanded. The original assignment version remains in the git history.
 
 ## License
 

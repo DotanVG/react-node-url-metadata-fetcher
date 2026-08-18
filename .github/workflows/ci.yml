@@ -12,12 +12,8 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (Node ${{ matrix.node }})
+    name: Backend (Node 24)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ['20', '22']
     defaults:
       run:
         working-directory: Backend
@@ -26,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '24'
           cache: npm
           cache-dependency-path: Backend/package-lock.json
 
@@ -34,7 +30,7 @@ jobs:
       - run: npm test
 
   frontend:
-    name: Frontend
+    name: Frontend (Node 24)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -44,7 +40,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: Frontend/package-lock.json
 
