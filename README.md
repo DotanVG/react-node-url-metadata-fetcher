@@ -322,6 +322,10 @@ Frontend/
     hooks/                  useBackendStatus (wake-up), useTheme, usePersistentUrls
     lib/                    api client, URL parsing, JSON/CSV export
     tests/                  Vitest suites
+
+docs/
+  capture-screenshots.mjs   regenerates the screenshots above
+  qr/                       photo-embedded QR code for the live app, and its generator
 ```
 
 ## Contributing

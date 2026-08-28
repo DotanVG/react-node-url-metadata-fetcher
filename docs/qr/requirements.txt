@@ -1,0 +1,7 @@
+# Asset generator for docs/qr/premium-qr.png — not part of the app build.
+#   python3 -m pip install -r docs/qr/requirements.txt
+pillow>=11
+numpy>=2
+segno>=1.6
+opencv-python-headless>=4.10
+zxing-cpp>=2.2
