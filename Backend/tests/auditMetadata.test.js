@@ -194,6 +194,32 @@ describe('auditMetadata indexability', () => {
     const withRobots = (content) =>
         FULL_PAGE.replace('</head>', `<meta name="robots" content="${content}"></head>`);
 
+    describe.each([
+        ['meta robots', (value) => audit(withRobots(value))],
+        ['X-Robots-Tag', (value) => auditMetadata(extractMetadata(FULL_PAGE, BASE), {
+            robotsHeader: value,
+        })],
+    ])('%s directives', (_source, check) => {
+        it.each([
+            ['max-image-preview:none', true],
+            [' MAX-IMAGE-PREVIEW: none ', true],
+            ['max-snippet:none, max-video-preview:none, unavailable_after:none', true],
+            ['noindex', false],
+            ['none', false],
+            ['NOINDEX, nofollow', false],
+            [' index, NONE , nofollow ', false],
+            ['index, follow, max-snippet:-1, max-image-preview:large', true],
+            ['indexifembedded, noimageindex', true],
+            ['max-image-preview:none, noindex', false],
+        ])('treats "%s" as indexable=%s', (value, indexable) => {
+            const result = check(value);
+            expect(result.indexable).toBe(indexable);
+            expect(result.score).toBe(indexable ? 100 : 50);
+            expect(result.warnings.some((warning) => /Not indexable/.test(warning.message)))
+                .toBe(!indexable);
+        });
+    });
+
     it('flags noindex in meta robots and caps the score', () => {
         const result = audit(withRobots('noindex, follow'));
         expect(result.indexable).toBe(false);
@@ -207,12 +233,20 @@ describe('auditMetadata indexability', () => {
         expect(result.indexable).toBe(false);
     });
 
-    it('flags noindex in the X-Robots-Tag header', () => {
+    it.each([
+        ['googlebot: noindex', false],
+        [' Googlebot: NONE ', false],
+        ['othercrawler:noindex, nofollow', false],
+        ['index, follow, googlebot: noindex', false],
+        ['googlebot: max-image-preview:none', true],
+        ['googlebot: max-image-preview: none, follow', true],
+    ])('handles the user-agent prefix in X-Robots-Tag "%s"', (value, indexable) => {
         const result = auditMetadata(extractMetadata(FULL_PAGE, BASE), {
-            robotsHeader: 'googlebot: noindex',
+            robotsHeader: value,
         });
-        expect(result.indexable).toBe(false);
-        expect(result.warnings[0].message).toMatch(/X-Robots-Tag/);
+        expect(result.indexable).toBe(indexable);
+        expect(result.score).toBe(indexable ? 100 : 50);
+        if (!indexable) expect(result.warnings[0].message).toMatch(/X-Robots-Tag/);
     });
 
     it('treats "index, follow" as indexable', () => {
