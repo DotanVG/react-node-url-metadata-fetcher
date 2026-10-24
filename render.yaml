@@ -1,13 +1,18 @@
 # Render blueprint for the backend API.
+# Matches the live web service. healthCheckPath is set because the API
+# exposes GET /health; the dashboard health check is configured separately.
 # https://render.com/docs/blueprint-spec
 services:
   - type: web
-    name: url-metadata-fetcher-api
+    name: react-node-url-metadata-fetcher
     runtime: node
+    region: frankfurt
     plan: free
+    branch: main
     rootDir: Backend
-    buildCommand: npm ci
+    buildCommand: npm install
     startCommand: npm start
+    autoDeployTrigger: commit
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

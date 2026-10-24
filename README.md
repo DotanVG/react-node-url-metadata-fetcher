@@ -18,6 +18,7 @@
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [API reference](#api-reference)
+- [Auditing a single-page app](#auditing-a-single-page-app)
 - [Error codes](#error-codes)
 - [Testing](#testing)
 - [Security](#security)
@@ -216,9 +217,19 @@ Each successful result carries an `audit` grading what the page publishes.
 
 **`sources`** names where each value actually came from: `og`, `twitter`, `jsonld`, `html`, or `derived`. That last one matters. `derived` means *we* worked the value out and the page never published it. `siteName` falls back to the hostname and `favicon` to `/favicon.ico`, so both are commonly `derived`.
 
-`favicon` is taken from the first of `rel="icon"`, `rel="shortcut icon"`, `rel="alternate icon"`, `rel="apple-touch-icon"`, `rel="mask-icon"` that the page declares, so the icon the page declares wins over the home-screen icon. `locale` only ever comes from `og:locale`; `<html lang>` is not the same thing and is not used.
+`favicon` is chosen by the `rel` value, in this order, and the first usable `href` wins:
 
-The API reads the raw HTML the server returns, the same way social crawlers do. Tags a single-page app adds with JavaScript after load are invisible to it, and to them.
+1. `icon`
+2. `shortcut icon`
+3. `alternate icon`
+4. `apple-touch-icon`
+5. `mask-icon`
+
+The match is the exact `rel` on the tag (`link[rel="icon"]` and the rest in `findFavicon`). When a relation appears more than once, the first tag in the document is used. Size is ignored, so a large `apple-touch-icon` stays a fallback: a page that declares both `rel="icon"` and `rel="apple-touch-icon"` reports the `rel="icon"` address, even when the touch icon comes first in `<head>`. An `href` that is not `http:` or `https:` is skipped, which drops `javascript:` and `data:` URLs.
+
+Any of those declared tags sets `sources.favicon` to `html`. The source names the kind of markup, and it does not name which relation won. With no usable declared icon, the value is `/favicon.ico` resolved against the page URL and `sources.favicon` is `derived`. The audit then marks favicon as inferred. `locale` only ever comes from `og:locale`; `<html lang>` is not the same thing and is not used.
+
+The API reads the raw HTML the server returns, the same way social crawlers do. See [Auditing a single-page app](#auditing-a-single-page-app).
 
 **`audit.fields[].status`** is one of:
 
@@ -264,6 +275,18 @@ curl -X POST https://react-node-url-metadata-fetcher.onrender.com/fetch-metadata
   -d '{"urls":["https://nodejs.org/en/about"]}'
 ```
 
+## Auditing a single-page app
+
+`fetchPage` downloads the document the server returns for that URL. `extractMetadata` parses it with Cheerio. Nothing in the pipeline runs JavaScript, so tags a framework writes into `<head>` after load are absent from the result. A social crawler is in the same position: it sees the shell, not the rendered app.
+
+A catch-all route that serves one `index.html` for every path therefore returns the same title, the same empty description and image, and the same audit for every URL on the site. Each URL is fetched on its own. `fetchMetadataForUrls` keeps no result cache, so identical cards are the shell the origin sent.
+
+Batch several distinct URLs from the same site in one request, for example the home page and two content pages. The response keeps input order, and two identical cards side by side are the comparison.
+
+The tags have to be in the HTML the server sends for that exact path. Inject them on the server, or prerender the route. A client-side router never reaches this API.
+
+Preview caches on other products are separate. WhatsApp keeps a stored card for a URL for weeks. After the HTML changes, the next call to this API shows the new tags. To refresh the WhatsApp card, use a URL it has not stored, or add a query parameter.
+
 ## Error codes
 
 Every failure carries a stable `code` and a message written for a person, not a log file.
@@ -308,9 +331,9 @@ And around the edges: Helmet security headers, an origin allowlist for CORS, per
 
 ## Deployment
 
-**Backend to Render.** `render.yaml` at the repo root is a ready blueprint with `Backend` as the root directory and `/health` as the health check. Set `ALLOWED_ORIGINS` to your frontend's origin.
+**Backend to Render.** `render.yaml` at the repo root matches the live web service: name `react-node-url-metadata-fetcher`, Node, region Frankfurt, free plan, branch `main`, root directory `Backend`, build `npm install`, start `npm start`, and auto-deploy on commit. `healthCheckPath` is `/health`, which the API exposes as `GET /health` (and `GET /healthz`). The health check path in the Render dashboard is a separate setting. `NODE_ENV` and `ALLOWED_ORIGINS` are the env keys declared in the blueprint; set `ALLOWED_ORIGINS` to your frontend's origin. Secret values stay out of the file.
 
-**Frontend to Netlify.** The Netlify site builds from `Frontend` with `npm run build` and publishes `Frontend/dist`. `Frontend/public/_redirects` provides the SPA fallback from inside the published output. Set `VITE_API_URL` in the Netlify environment.
+**Frontend to Netlify.** The Netlify site builds from `Frontend` with `npm run build` and publishes `Frontend/dist`. The repo has no `netlify.toml` and no `_redirects` file. Vite copies `Frontend/public` into the publish directory. `Frontend/public/404.html` is a real not-found page, so an unknown path is a 404. The app is a single page with no client-side router, and it does not rewrite every path to `index.html`. `Frontend/public/_headers` is what Netlify reads for the report-only Content-Security-Policy, the other security headers, and cache rules. Set `VITE_API_URL` in the Netlify environment.
 
 Free-tier instances sleep after inactivity, which is why the app pings `/health` on load and tells the user what is happening instead of appearing broken.
 
