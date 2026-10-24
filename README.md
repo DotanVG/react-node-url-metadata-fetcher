@@ -216,6 +216,10 @@ Each successful result carries an `audit` grading what the page publishes.
 
 **`sources`** names where each value actually came from: `og`, `twitter`, `jsonld`, `html`, or `derived`. That last one matters. `derived` means *we* worked the value out and the page never published it. `siteName` falls back to the hostname and `favicon` to `/favicon.ico`, so both are commonly `derived`.
 
+`favicon` is taken from the first of `rel="icon"`, `rel="shortcut icon"`, `rel="alternate icon"`, `rel="apple-touch-icon"`, `rel="mask-icon"` that the page declares, so the icon the page declares wins over the home-screen icon. `locale` only ever comes from `og:locale`; `<html lang>` is not the same thing and is not used.
+
+The API reads the raw HTML the server returns, the same way social crawlers do. Tags a single-page app adds with JavaScript after load are invisible to it, and to them.
+
 **`audit.fields[].status`** is one of:
 
 | Status | Meaning |
@@ -225,6 +229,17 @@ Each successful result carries an `audit` grading what the page publishes.
 | `missing` | Absent entirely |
 
 **`audit.fields[].importance`** is `essential` (title, description and image; the preview breaks without them), `recommended`, or `optional`. The score weights them 3 / 2 / 1 and gives an inferred value half credit, so a page cannot score well by publishing a dozen trivial tags and no `og:image`. `missingEssential` lists just the headline problems.
+
+The score depends on context: `article:published_time` only counts when `og:type` is `article`, and `keywords` is shown for information only. Fields left out of the score have `scored: false`.
+
+The audit also carries:
+
+| Field | Meaning |
+| --- | --- |
+| `indexable` | `false` when `noindex` / `none` is set in `<meta name="robots">`, `<meta name="googlebot">` or the `X-Robots-Tag` header. Caps the score at 50 |
+| `image` | What fetching the preview image returned: `status`, `contentType`, `width`, `height`, `bytes` (null if not found) |
+| `jsonLd` | The `@types` found and any JSON-LD blocks that failed to parse |
+| `warnings` | `{ level: "error" \| "warning", message }` for noindex, a relative or broken preview image, an aspect ratio far from 1.91:1, an image over 1 MB, and JSON-LD parse errors |
 
 A URL that could not be fetched is reported **in place**, not as a failed request:
 

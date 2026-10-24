@@ -91,6 +91,11 @@ const routes = {
 </head><body></body></html>`
         ),
 
+    '/noindex-header': (req, res) =>
+        html(res, '<html><head><title>Hidden</title></head></html>', 200, {
+            'X-Robots-Tag': 'noindex',
+        }),
+
     '/bare': (req, res) =>
         html(res, '<html><head><title>Bare Page</title></head><body></body></html>'),
 

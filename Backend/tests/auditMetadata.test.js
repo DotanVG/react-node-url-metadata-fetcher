@@ -163,3 +163,98 @@ describe('extractMetadata sources', () => {
         expect(metadata.sources.title).toBe('og');
     });
 });
+
+describe('auditMetadata context', () => {
+    const WEBSITE = FULL_PAGE.replace('content="article"', 'content="website"').replace(
+        '<meta property="article:published_time" content="2024-01-01">',
+        ''
+    );
+
+    it('does not penalise a missing published date on og:type=website', () => {
+        const result = audit(WEBSITE);
+        expect(field(result, 'publishedAt')).toMatchObject({ status: STATUS.MISSING, scored: false });
+        expect(result.score).toBe(100);
+    });
+
+    it('still scores a missing published date on an article', () => {
+        const result = audit(
+            FULL_PAGE.replace('<meta property="article:published_time" content="2024-01-01">', '')
+        );
+        expect(result.score).toBeLessThan(100);
+    });
+
+    it('keeps keywords informational and out of the score', () => {
+        const result = audit(FULL_PAGE.replace('<meta name="keywords" content="a,b">', ''));
+        expect(field(result, 'keywords').scored).toBe(false);
+        expect(result.score).toBe(100);
+    });
+});
+
+describe('auditMetadata indexability', () => {
+    const withRobots = (content) =>
+        FULL_PAGE.replace('</head>', `<meta name="robots" content="${content}"></head>`);
+
+    it('flags noindex in meta robots and caps the score', () => {
+        const result = audit(withRobots('noindex, follow'));
+        expect(result.indexable).toBe(false);
+        expect(result.score).toBe(50);
+        expect(result.warnings[0].level).toBe('error');
+        expect(result.warnings[0].message).toMatch(/meta robots/);
+    });
+
+    it('flags "none" in a googlebot meta tag', () => {
+        const result = audit('<html><head><meta name="googlebot" content="none"></head></html>');
+        expect(result.indexable).toBe(false);
+    });
+
+    it('flags noindex in the X-Robots-Tag header', () => {
+        const result = auditMetadata(extractMetadata(FULL_PAGE, BASE), {
+            robotsHeader: 'googlebot: noindex',
+        });
+        expect(result.indexable).toBe(false);
+        expect(result.warnings[0].message).toMatch(/X-Robots-Tag/);
+    });
+
+    it('treats "index, follow" as indexable', () => {
+        const result = audit(withRobots('index, follow'));
+        expect(result.indexable).toBe(true);
+        expect(result.warnings.filter((w) => w.level === 'error')).toEqual([]);
+    });
+});
+
+describe('auditMetadata image and JSON-LD warnings', () => {
+    const messages = (result) => result.warnings.map((w) => w.message).join('\n');
+    const absolutePage = FULL_PAGE.replace('/hero.png', 'https://example.com/hero.png');
+
+    it('warns when og:image is relative', () => {
+        expect(messages(audit(FULL_PAGE))).toMatch(/relative URL/);
+        expect(messages(audit(absolutePage))).not.toMatch(/relative URL/);
+    });
+
+    it('reports a broken, mis-shaped or heavy image', () => {
+        const metadata = extractMetadata(absolutePage, BASE);
+        const check = (image) => messages(auditMetadata(metadata, { image }));
+
+        expect(check({ ok: false, status: 404, contentType: 'text/html' })).toMatch(/HTTP 404/);
+        expect(check({ ok: false, status: 200, contentType: 'text/html' })).toMatch(/not an image/);
+        expect(check({ ok: false, error: 'timed out' })).toMatch(/could not be fetched/);
+        expect(check({ ok: true, status: 200, width: 800, height: 800, bytes: 1000 })).toMatch(
+            /1\.91:1/
+        );
+        expect(
+            check({ ok: true, status: 200, width: 1200, height: 630, bytes: 3_000_000 })
+        ).toMatch(/2\.9 MB/);
+        expect(check({ ok: true, status: 200, width: 1200, height: 630, bytes: 90_000 })).toBe('');
+    });
+
+    it('reports JSON-LD parse errors and the @types found', () => {
+        const result = audit(`<html><head>
+            <script type="application/ld+json">{ broken </script>
+            <script type="application/ld+json">{"@graph":[{"@type":"WebSite"},{"@type":["Person","Thing"]}]}</script>
+        </head></html>`);
+
+        expect(result.jsonLd.types).toEqual(['WebSite', 'Person', 'Thing']);
+        expect(result.jsonLd.errors).toHaveLength(1);
+        expect(messages(result)).toMatch(/1 JSON-LD block/);
+    });
+});

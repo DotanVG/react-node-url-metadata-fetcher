@@ -28,81 +28,88 @@ const REQUEST_HEADERS = {
  * is time-boxed, and the body is truncated at MAX_HTML_BYTES.
  */
 export async function fetchPage(rawUrl) {
-    let url = parseUrl(rawUrl);
-    const timeoutSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
     const startedAt = Date.now();
+    const { response, url } = await fetchPublic(rawUrl, {
+        headers: REQUEST_HEADERS,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+        await discardBody(response);
+        throw new MetadataError(
+            ERROR_CODES.HTTP_ERROR,
+            describeHttpStatus(response.status, response.statusText),
+            { status: response.status }
+        );
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType && !isParsableContentType(contentType)) {
+        await discardBody(response);
+        throw new MetadataError(
+            ERROR_CODES.UNSUPPORTED_CONTENT_TYPE,
+            `This address returns ${describeContentType(contentType)}, not a web page we can read metadata from.`,
+            { contentType }
+        );
+    }
+
+    const html = await readCappedText(response, contentType);
+
+    return {
+        html,
+        finalUrl: response.url || url.href,
+        status: response.status,
+        contentType,
+        // Crawlers honour this header as strictly as <meta name="robots">.
+        robotsHeader: response.headers.get('x-robots-tag') || '',
+        elapsedMs: Date.now() - startedAt,
+    };
+}
+
+/**
+ * Follows redirects by hand so every hop is re-validated against the SSRF
+ * guard. Resolves with the first non-redirect response, body unread.
+ */
+export async function fetchPublic(rawUrl, { headers, signal, method = 'GET' }) {
+    let url = parseUrl(rawUrl);
 
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
         await assertPublicUrl(url);
 
         let response;
         try {
-            response = await fetch(url, {
-                headers: REQUEST_HEADERS,
-                redirect: 'manual',
-                signal: timeoutSignal,
-            });
+            response = await fetch(url, { method, headers, redirect: 'manual', signal });
         } catch (error) {
             throw toMetadataError(error, url.href);
         }
 
-        if (REDIRECT_STATUSES.has(response.status)) {
-            const location = response.headers.get('location');
-            await discardBody(response);
+        if (!REDIRECT_STATUSES.has(response.status)) return { response, url };
 
-            if (!location) {
-                throw new MetadataError(
-                    ERROR_CODES.HTTP_ERROR,
-                    `The site sent a redirect (${response.status}) without telling us where to go.`,
-                    { status: response.status }
-                );
-            }
+        const location = response.headers.get('location');
+        await discardBody(response);
 
-            let next;
-            try {
-                next = new URL(location, url);
-            } catch {
-                throw new MetadataError(
-                    ERROR_CODES.HTTP_ERROR,
-                    'The site redirected us to an address we could not understand.',
-                    { status: response.status }
-                );
-            }
-
-            // Re-run full validation so an open redirect cannot walk us into
-            // the private network or off onto a non-HTTP scheme.
-            url = parseUrl(next.href);
-            continue;
-        }
-
-        if (!response.ok) {
-            await discardBody(response);
+        if (!location) {
             throw new MetadataError(
                 ERROR_CODES.HTTP_ERROR,
-                describeHttpStatus(response.status, response.statusText),
+                `The site sent a redirect (${response.status}) without telling us where to go.`,
                 { status: response.status }
             );
         }
 
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType && !isParsableContentType(contentType)) {
-            await discardBody(response);
+        let next;
+        try {
+            next = new URL(location, url);
+        } catch {
             throw new MetadataError(
-                ERROR_CODES.UNSUPPORTED_CONTENT_TYPE,
-                `This address returns ${describeContentType(contentType)}, not a web page we can read metadata from.`,
-                { contentType }
+                ERROR_CODES.HTTP_ERROR,
+                'The site redirected us to an address we could not understand.',
+                { status: response.status }
             );
         }
 
-        const html = await readCappedText(response, contentType);
-
-        return {
-            html,
-            finalUrl: response.url || url.href,
-            status: response.status,
-            contentType,
-            elapsedMs: Date.now() - startedAt,
-        };
+        // Re-run full validation so an open redirect cannot walk us into
+        // the private network or off onto a non-HTTP scheme.
+        url = parseUrl(next.href);
     }
 
     throw new MetadataError(
@@ -197,7 +204,7 @@ function decode(buffer, contentType) {
     return buffer.toString('utf8');
 }
 
-async function discardBody(response) {
+export async function discardBody(response) {
     try {
         await response.body?.cancel();
     } catch {

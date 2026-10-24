@@ -1,4 +1,5 @@
 import { auditMetadata } from './auditMetadata.js';
+import { checkImage } from './checkImage.js';
 import { FETCH_CONCURRENCY } from './config.js';
 import { toMetadataError } from './errors.js';
 import { extractMetadata } from './extractMetadata.js';
@@ -13,7 +14,8 @@ export async function fetchMetadataForUrl(rawUrl) {
 
     try {
         const page = await fetchPage(rawUrl);
-        const metadata = extractMetadata(page.html, page.finalUrl);
+        const { signals, ...metadata } = extractMetadata(page.html, page.finalUrl);
+        const image = await checkImage(metadata.image);
 
         return {
             url: rawUrl,
@@ -22,7 +24,10 @@ export async function fetchMetadataForUrl(rawUrl) {
             status: page.status,
             elapsedMs: page.elapsedMs,
             ...metadata,
-            audit: auditMetadata(metadata),
+            audit: auditMetadata(
+                { ...metadata, signals },
+                { robotsHeader: page.robotsHeader, image }
+            ),
         };
     } catch (error) {
         const metadataError = toMetadataError(error, rawUrl);

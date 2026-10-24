@@ -77,6 +77,27 @@ function preview(value) {
     return stripped.length > 90 ? `${stripped.slice(0, 89)}…` : stripped;
 }
 
+function formatBytes(bytes) {
+    if (!bytes) return '';
+    return bytes >= 1024 * 1024
+        ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+        : `${Math.round(bytes / 1024)} KB`;
+}
+
+/** One line of what the preview-image probe actually got back. */
+function describeImage(image) {
+    if (!image) return '';
+    if (image.error) return image.error;
+    return [
+        `HTTP ${image.status}`,
+        image.contentType,
+        image.width && `${image.width}×${image.height}`,
+        formatBytes(image.bytes),
+    ]
+        .filter(Boolean)
+        .join(' · ');
+}
+
 const Tally = ({ Icon, className, count, label }) => (
     <span className={`inline-flex items-center gap-1 ${className}`}>
         <Icon size={13} aria-hidden="true" />
@@ -147,6 +168,28 @@ const MetadataAudit = ({ audit, result }) => {
                 />
             </button>
 
+            {audit.warnings?.length > 0 && (
+                <ul className="mt-2 space-y-1 px-1 text-xs">
+                    {audit.warnings.map((warning) => (
+                        <li
+                            key={warning.message}
+                            className={`flex items-start gap-1.5 ${
+                                warning.level === 'error'
+                                    ? 'font-medium text-rose-700 dark:text-rose-300'
+                                    : 'text-amber-700 dark:text-amber-300'
+                            }`}
+                        >
+                            {warning.level === 'error' ? (
+                                <FiXCircle size={13} className="mt-px shrink-0" aria-hidden="true" />
+                            ) : (
+                                <FiAlertTriangle size={13} className="mt-px shrink-0" aria-hidden="true" />
+                            )}
+                            <span>{warning.message}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+
             {audit.missingEssential.length > 0 && !isOpen && (
                 <p className="mt-2 px-1 text-xs text-rose-700 dark:text-rose-300">
                     Missing {audit.missingEssential.join(', ')}. The preview will
@@ -210,6 +253,11 @@ const MetadataAudit = ({ audit, result }) => {
                                                         <span className={`text-[11px] ${className}`}>
                                                             {word}
                                                         </span>
+                                                        {field.scored === false && (
+                                                            <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                                                Not scored
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
@@ -223,6 +271,27 @@ const MetadataAudit = ({ audit, result }) => {
                             </section>
                         );
                     })}
+
+                    {(audit.image || audit.jsonLd?.types?.length > 0) && (
+                        <dl className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                            {audit.image && (
+                                <div className="flex gap-2">
+                                    <dt className="font-medium text-slate-700 dark:text-slate-300">
+                                        Preview image
+                                    </dt>
+                                    <dd className="min-w-0 truncate">{describeImage(audit.image)}</dd>
+                                </div>
+                            )}
+                            {audit.jsonLd?.types?.length > 0 && (
+                                <div className="flex gap-2">
+                                    <dt className="font-medium text-slate-700 dark:text-slate-300">
+                                        JSON-LD types
+                                    </dt>
+                                    <dd className="min-w-0">{audit.jsonLd.types.join(', ')}</dd>
+                                </div>
+                            )}
+                        </dl>
+                    )}
                 </div>
             )}
         </div>

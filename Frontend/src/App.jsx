@@ -250,6 +250,10 @@ function App() {
                         </kbd>{' '}
                         to add, or paste a whole list at once.
                     </p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        Reads the raw HTML like social crawlers do, so tags added by
+                        JavaScript after load will not show up.
+                    </p>
 
                     <form onSubmit={handleSubmit} className="mt-6 space-y-5">
                         <div onPaste={handlePaste}>

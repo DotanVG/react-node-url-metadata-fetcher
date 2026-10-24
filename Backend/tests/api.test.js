@@ -120,6 +120,23 @@ describe('POST /fetch-metadata validation', () => {
 });
 
 describe('POST /fetch-metadata results', () => {
+    it('flags a noindex X-Robots-Tag header in the audit', async () => {
+        const response = await post([fixture.url('/noindex-header'), fixture.url('/bare')]);
+        const [hidden, visible] = response.body.results;
+
+        expect(hidden.audit.indexable).toBe(false);
+        expect(hidden.audit.warnings[0].message).toMatch(/X-Robots-Tag/);
+        expect(visible.audit.indexable).toBe(true);
+    });
+
+    it('probes the preview image and reports a broken one', async () => {
+        const response = await post([fixture.url('/rich')]);
+        const [result] = response.body.results;
+
+        expect(result.audit.image).toMatchObject({ ok: false, status: 404 });
+        expect(result.audit.warnings.map((w) => w.message).join()).toMatch(/HTTP 404/);
+    });
+
     it('extracts the full metadata set from a rich page', async () => {
         const response = await post([fixture.url('/rich')]);
         const [result] = response.body.results;
