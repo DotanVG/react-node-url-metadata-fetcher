@@ -191,8 +191,8 @@ export function auditMetadata(metadata, { robotsHeader = '', image = null } = {}
 
     const noindex = [
         ['meta robots', signals.robots],
-        ['X-Robots-Tag header', robotsHeader],
-    ].filter(([, value]) => hasNoindex(value));
+        ['X-Robots-Tag header', robotsHeader, true],
+    ].filter(([, value, allowUserAgent]) => hasNoindex(value, allowUserAgent));
 
     const warnings = [];
     if (noindex.length > 0) {
@@ -235,8 +235,22 @@ export function auditMetadata(metadata, { robotsHeader = '', image = null } = {}
     };
 }
 
-/** `noindex` or `none`, optionally scoped to a bot ("googlebot: noindex"). */
-const hasNoindex = (directives) => /\b(noindex|none)\b/i.test(directives ?? '');
+// These colons introduce directive values, not user-agent prefixes.
+const PARAMETERIZED_ROBOTS = new Set([
+    'max-snippet', 'max-image-preview', 'max-video-preview', 'unavailable_after',
+]);
+
+/** Only standalone `noindex` / `none`, optionally scoped in X-Robots-Tag. */
+const hasNoindex = (directives, allowUserAgent = false) =>
+    (directives ?? '').split(',').some((entry) => {
+        let directive = entry.trim().toLowerCase();
+        const colon = directive.indexOf(':');
+        if (allowUserAgent && colon !== -1 &&
+            !PARAMETERIZED_ROBOTS.has(directive.slice(0, colon).trim())) {
+            directive = directive.slice(colon + 1).trim();
+        }
+        return directive === 'noindex' || directive === 'none';
+    });
 
 function imageWarnings(metadata, signals, image) {
     const warnings = [];
