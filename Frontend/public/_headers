@@ -1,8 +1,8 @@
 # Report-only while real API responses and third-party preview images are observed.
 # The script hash permits the existing inline theme bootstrap; rehash if it changes.
-# Google font sources support this branch independently of the self-hosted font fix.
+# Inter is self-hosted; font sources only need the same origin.
 /*
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-YsoEeq1P/6Qyp5w7u3VyHhKJSgGWdIa7A3qPaunCzqg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src 'self' https://react-node-url-metadata-fetcher.onrender.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://itch.io https://*.itch.io https://*.itch.zone https://*.hwcdn.net
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-YsoEeq1P/6Qyp5w7u3VyHhKJSgGWdIa7A3qPaunCzqg='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' https: data: blob:; connect-src 'self' https://react-node-url-metadata-fetcher.onrender.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://itch.io https://*.itch.io https://*.itch.zone https://*.hwcdn.net
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
