@@ -44,6 +44,8 @@ export const MAX_URLS_PER_REQUEST = int(process.env.MAX_URLS_PER_REQUEST, 20);
 // Per-URL network budget. Render's free tier is slow, but a hung upstream
 // should never hold a worker hostage.
 export const FETCH_TIMEOUT_MS = int(process.env.FETCH_TIMEOUT_MS, 10_000);
+// The og:image probe gets its own, shorter budget so it cannot double a slow page.
+export const IMAGE_TIMEOUT_MS = int(process.env.IMAGE_TIMEOUT_MS, 5_000);
 export const MAX_HTML_BYTES = int(process.env.MAX_HTML_BYTES, 2 * 1024 * 1024);
 export const MAX_REDIRECTS = int(process.env.MAX_REDIRECTS, 5);
 export const FETCH_CONCURRENCY = int(process.env.FETCH_CONCURRENCY, 5);

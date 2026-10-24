@@ -134,3 +134,38 @@ describe('extractMetadata', () => {
         expect(() => extractMetadata('<html><head><meta', BASE)).not.toThrow();
     });
 });
+
+describe('extractMetadata accuracy', () => {
+    it('does not treat <html lang> as og:locale', () => {
+        expect(extractMetadata('<html lang="en"></html>', BASE).locale).toBe('');
+    });
+
+    it('does not treat meta name="date" as article:published_time', () => {
+        const html = '<html><head><meta name="date" content="2024-01-01"></head></html>';
+        expect(extractMetadata(html, BASE).publishedAt).toBe('');
+    });
+
+    it('prefers rel="icon" over apple-touch-icon', () => {
+        const result = extractMetadata(
+            `<html><head>
+        <link rel="apple-touch-icon" href="/apple.png">
+        <link rel="icon" href="/favicon.svg">
+      </head></html>`,
+            BASE
+        );
+        expect(result.favicon).toBe('https://example.com/favicon.svg');
+    });
+
+    it('falls back to apple-touch-icon when it is the only icon', () => {
+        const html = '<html><head><link rel="apple-touch-icon" href="/apple.png"></head></html>';
+        expect(extractMetadata(html, BASE).favicon).toBe('https://example.com/apple.png');
+    });
+
+    it('collects robots directives from robots and googlebot meta tags', () => {
+        const result = extractMetadata(
+            '<html><head><meta name="ROBOTS" content="index"><meta name="googlebot" content="noindex"></head></html>',
+            BASE
+        );
+        expect(result.signals.robots).toBe('index, noindex');
+    });
+});

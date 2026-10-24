@@ -26,11 +26,12 @@ export const SOURCES = {
  * closest thing to "what this link looks like when shared".
  *
  * Returns the flat metadata fields plus a `sources` map naming the winning
- * source for each one.
+ * source for each one, and `signals`: raw facts the audit needs that are not
+ * metadata themselves.
  */
 export function extractMetadata(html, baseUrl) {
     const $ = cheerio.load(html);
-    const jsonLd = readJsonLd($);
+    const { merged: jsonLd, types: jsonLdTypes, errors: jsonLdErrors } = readJsonLd($);
 
     const meta = (selector, attribute = 'content') =>
         clean($(selector).first().attr(attribute));
@@ -84,14 +85,12 @@ export function extractMetadata(html, baseUrl) {
 
     const publishedAt = pick(
         [meta('meta[property="article:published_time"]'), SOURCES.OG],
-        [meta('meta[name="date"]'), SOURCES.HTML],
         [clean(jsonLd.datePublished), SOURCES.JSON_LD]
     );
 
-    const locale = pick(
-        [meta('meta[property="og:locale"]'), SOURCES.OG],
-        [clean($('html').attr('lang')), SOURCES.HTML]
-    );
+    // <html lang> is the document language, not og:locale; crawlers do not
+    // read one as the other.
+    const locale = pick([meta('meta[property="og:locale"]'), SOURCES.OG]);
 
     const type = pick([meta('meta[property="og:type"]'), SOURCES.OG]);
     const themeColor = pick([meta('meta[name="theme-color"]'), SOURCES.HTML]);
@@ -124,7 +123,20 @@ export function extractMetadata(html, baseUrl) {
         sources[key] = isEmpty(field.value) ? null : field.source;
     }
 
-    return { ...metadata, sources };
+    const robots = $('meta[name="robots" i], meta[name="googlebot" i]')
+        .map((_, element) => clean($(element).attr('content')))
+        .get()
+        .filter(Boolean)
+        .join(', ');
+
+    const signals = {
+        robots,
+        // The value as written, so the audit can flag a relative og:image.
+        imageDeclared: image.value,
+        jsonLd: { types: jsonLdTypes, errors: jsonLdErrors },
+    };
+
+    return { ...metadata, sources, signals };
 }
 
 /** First non-empty candidate wins, carrying its source along. */
@@ -174,10 +186,12 @@ function hostnameOf(baseUrl) {
 
 function findFavicon($, baseUrl) {
     const candidates = [
-        'link[rel="apple-touch-icon"]',
+        // What the page declares as its icon wins; apple-touch-icon is a
+        // home-screen asset and only a fallback.
         'link[rel="icon"]',
         'link[rel="shortcut icon"]',
         'link[rel="alternate icon"]',
+        'link[rel="apple-touch-icon"]',
         'link[rel="mask-icon"]',
     ];
 
@@ -202,9 +216,14 @@ function splitKeywords(value) {
         .slice(0, 15);
 }
 
-/** Merges every JSON-LD block on the page into one lookup object. */
+/**
+ * Merges every JSON-LD block on the page into one lookup object, and records
+ * the @types found and any blocks that failed to parse.
+ */
 function readJsonLd($) {
     const merged = {};
+    const types = new Set();
+    const errors = [];
 
     $('script[type="application/ld+json"]').each((_, element) => {
         const raw = $(element).contents().text();
@@ -213,8 +232,11 @@ function readJsonLd($) {
         let parsed;
         try {
             parsed = JSON.parse(raw);
-        } catch {
-            return; // Malformed JSON-LD is extremely common; just skip it.
+        } catch (error) {
+            // Common, and invisible to the author, so report it rather than
+            // silently skipping the block.
+            errors.push(error.message);
+            return;
         }
 
         const entries = []
@@ -223,6 +245,9 @@ function readJsonLd($) {
 
         for (const entry of entries) {
             if (!entry || typeof entry !== 'object') continue;
+            for (const type of [].concat(entry['@type'] ?? [])) {
+                if (typeof type === 'string') types.add(type);
+            }
             for (const [key, value] of Object.entries(entry)) {
                 if (merged[key] === undefined && value !== null) {
                     merged[key] = value;
@@ -231,7 +256,7 @@ function readJsonLd($) {
         }
     });
 
-    return merged;
+    return { merged, types: [...types], errors };
 }
 
 function firstJsonLdImage(jsonLd) {

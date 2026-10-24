@@ -191,6 +191,22 @@ describe('MetadataAudit', () => {
 
         expect(screen.getByRole('img', { name: /score 42 out of 100/i })).toBeInTheDocument();
     });
+
+    it('shows warnings without expanding, and image and JSON-LD details when expanded', async () => {
+        const user = userEvent.setup();
+        const audit = buildAudit(FIELDS, {
+            warnings: [{ level: 'error', message: 'Not indexable: noindex set in meta robots.' }],
+            image: { ok: true, status: 200, contentType: 'image/png', width: 1200, height: 630, bytes: 90_000 },
+            jsonLd: { types: ['WebSite', 'Person'], errors: [] },
+        });
+        render(<MetadataAudit audit={audit} result={RESULT} />);
+
+        expect(screen.getByText(/not indexable/i)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /metadata analysis/i }));
+        expect(screen.getByText('HTTP 200 · image/png · 1200×630 · 88 KB')).toBeInTheDocument();
+        expect(screen.getByText('WebSite, Person')).toBeInTheDocument();
+    });
 });
 
 describe('ScoreRing', () => {
