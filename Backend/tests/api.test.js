@@ -8,6 +8,8 @@ process.env.MAX_REDIRECTS = '2';
 process.env.MAX_URLS_PER_REQUEST = '5';
 process.env.RATE_LIMIT_MAX = '1000';
 
+import dns from 'node:dns/promises';
+import { jest } from '@jest/globals';
 import request from 'supertest';
 
 import { startFixtureServer } from './helpers/fixtureServer.js';
@@ -287,11 +289,18 @@ describe('POST /fetch-metadata per-URL errors', () => {
     }, 10_000);
 
     it('reports an unresolvable domain as a DNS error', async () => {
-        await expectError(
-            'https://this-domain-really-does-not-exist.invalid',
-            ERROR_CODES.DNS_ERROR
+        const lookup = jest.spyOn(dns, 'lookup').mockRejectedValue(
+            Object.assign(new Error('not found'), { code: 'ENOTFOUND' })
         );
-    }, 15_000);
+        try {
+            await expectError(
+                'https://this-domain-really-does-not-exist.invalid',
+                ERROR_CODES.DNS_ERROR
+            );
+        } finally {
+            lookup.mockRestore();
+        }
+    });
 });
 
 describe('CORS', () => {
