@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,7 +25,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: Backend/.nvmrc
           cache: npm
           cache-dependency-path: Backend/package-lock.json
 
@@ -40,7 +43,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: Frontend/.nvmrc
           cache: npm
           cache-dependency-path: Frontend/package-lock.json
 

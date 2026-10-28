@@ -1,4 +1,6 @@
 // Runs with ALLOW_PRIVATE_ADDRESSES unset, i.e. the production posture.
+import dns from 'node:dns/promises';
+import { jest } from '@jest/globals';
 import { ERROR_CODES } from '../src/errors.js';
 import {
     assertPublicUrl,
@@ -85,6 +87,16 @@ describe('parseUrl', () => {
 });
 
 describe('assertPublicUrl', () => {
+    let lookup;
+
+    beforeEach(() => {
+        lookup = jest.spyOn(dns, 'lookup').mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+        lookup.mockRestore();
+    });
+
     it.each([
         'http://localhost:3000',
         'http://app.localhost',
@@ -100,9 +112,35 @@ describe('assertPublicUrl', () => {
 
     it('allows a public IP literal', async () => {
         await expect(assertPublicUrl(parseUrl('http://1.1.1.1'))).resolves.toBeUndefined();
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('allows a domain only when every resolved address is public', async () => {
+        lookup.mockResolvedValue([
+            { address: '1.1.1.1', family: 4 },
+            { address: '2606:4700:4700::1111', family: 6 },
+        ]);
+
+        await expect(assertPublicUrl(parseUrl('https://example.com'))).resolves.toBeUndefined();
+        expect(lookup).toHaveBeenCalledWith('example.com', { all: true });
+    });
+
+    it.each([
+        { name: 'empty', addresses: [] },
+        { name: 'private IPv4', addresses: [{ address: '127.0.0.1', family: 4 }] },
+        { name: 'mixed public/private IPv4', addresses: [{ address: '1.1.1.1', family: 4 }, { address: '10.0.0.1', family: 4 }] },
+        { name: 'mixed public IPv4/private IPv6', addresses: [{ address: '1.1.1.1', family: 4 }, { address: '::1', family: 6 }] },
+    ])('blocks $name DNS answers', async ({ addresses }) => {
+        lookup.mockResolvedValue(addresses);
+
+        await expect(assertPublicUrl(parseUrl('https://example.com'))).rejects.toThrow(
+            expect.objectContaining({ code: ERROR_CODES.BLOCKED_HOST })
+        );
     });
 
     it('reports unresolvable domains as a DNS error', async () => {
+        lookup.mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOTFOUND' }));
+
         await expect(
             assertPublicUrl(parseUrl('https://this-domain-does-not-exist.invalid'))
         ).rejects.toThrow(expect.objectContaining({ code: ERROR_CODES.DNS_ERROR }));
