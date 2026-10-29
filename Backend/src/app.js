@@ -7,10 +7,11 @@ import helmet from 'helmet';
 import {
     ALLOWED_ORIGIN_PATTERNS,
     ALLOWED_ORIGINS,
-    IS_PRODUCTION,
+    IS_DEV_OR_TEST,
     MAX_URLS_PER_REQUEST,
     RATE_LIMIT_MAX,
     RATE_LIMIT_WINDOW_MS,
+    TRUST_PROXY_HOPS,
 } from './config.js';
 import { ERROR_CODES } from './errors.js';
 import { fetchMetadataForUrls } from './metadataService.js';
@@ -25,9 +26,9 @@ function isAllowedOrigin(origin) {
 export function createApp() {
     const app = express();
 
-    // Render/Netlify sit behind a proxy; trust it so rate limiting keys on the
-    // real client IP instead of the load balancer's.
-    app.set('trust proxy', 1);
+    // Keep the historical default until the deployed proxy chain is measured.
+    // See README: only trust the verified number of hops, never all XFF entries.
+    app.set('trust proxy', TRUST_PROXY_HOPS);
     app.disable('x-powered-by');
 
     app.use(
@@ -230,9 +231,9 @@ function errorHandler(err, req, res, next) {
     return res.status(500).json({
         error: {
             code: 'INTERNAL_ERROR',
-            message: IS_PRODUCTION
-                ? 'Something went wrong on our side. Please try again.'
-                : err?.message || 'Unknown error',
+            message: IS_DEV_OR_TEST
+                ? err?.message || 'Unknown error'
+                : 'Something went wrong on our side. Please try again.',
         },
     });
 }
