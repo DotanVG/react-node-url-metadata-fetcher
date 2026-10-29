@@ -15,6 +15,7 @@ import {
 } from './config.js';
 import { ERROR_CODES } from './errors.js';
 import { fetchMetadataForUrls } from './metadataService.js';
+import { rateLimitKey } from './rateLimitKey.js';
 
 const STARTED_AT = Date.now();
 
@@ -96,8 +97,9 @@ export function createApp() {
     const limiter = rateLimit({
         windowMs: RATE_LIMIT_WINDOW_MS,
         limit: RATE_LIMIT_MAX,
-        // Group IPv6 clients by /56 so address rotation cannot evade the limit.
-        ipv6Subnet: 56,
+        // Verified Cloudflare boundary + valid CF header, else Express req.ip.
+        // The key generator applies IPv6 /56 grouping on both paths.
+        keyGenerator: rateLimitKey,
         standardHeaders: 'draft-7',
         legacyHeaders: false,
         handler: (req, res) => {

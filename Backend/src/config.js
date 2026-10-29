@@ -34,6 +34,8 @@ export const IS_DEV_OR_TEST = NODE_ENV === 'development' || IS_TEST;
 
 export const PORT = int(process.env.PORT, 3000);
 export const TRUST_PROXY_HOPS = proxyHops(process.env.TRUST_PROXY_HOPS);
+export const CLOUDFLARE_IP_RANGES = process.env.CLOUDFLARE_IP_RANGES;
+export const RATE_LIMIT_PROXY_DIAGNOSTICS = bool(process.env.RATE_LIMIT_PROXY_DIAGNOSTICS, false);
 
 // Origins allowed to call the API from a browser. Requests without an `Origin`
 // header (curl, server-to-server, health checks) are always allowed.
