@@ -63,9 +63,38 @@ describe('unknown routes', () => {
         expect(response.body.error.code).toBe('NOT_FOUND');
         expect(response.body.error.message).toMatch(/GET \//);
     });
+
+    it('keeps the JSON catch-all for nested paths with query strings', async () => {
+        const response = await request(app).get('/missing/nested?filter[name]=value');
+        expect(response.status).toBe(404);
+        expect(response.body.error.code).toBe('NOT_FOUND');
+    });
 });
 
 describe('POST /fetch-metadata validation', () => {
+    it('does not accept query parameters as a replacement for the JSON body', async () => {
+        const response = await request(app)
+            .post('/fetch-metadata?urls[]=https://example.com')
+            .send({});
+        expect(response.status).toBe(400);
+        expect(response.body.error.code).toBe('INVALID_URL');
+    });
+
+    it('reports malformed JSON through the error middleware', async () => {
+        const response = await request(app)
+            .post('/fetch-metadata')
+            .set('Content-Type', 'application/json')
+            .send('{"urls":');
+        expect(response.status).toBe(400);
+        expect(response.body.error.code).toBe('INVALID_JSON');
+    });
+
+    it('reports oversized JSON through the error middleware', async () => {
+        const response = await post(['x'.repeat(110_000)]);
+        expect(response.status).toBe(413);
+        expect(response.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    });
+
     it('accepts a single URL because there is no minimum batch size', async () => {
         const response = await post([fixture.url('/bare')]);
 
