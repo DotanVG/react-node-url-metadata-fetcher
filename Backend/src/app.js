@@ -95,6 +95,8 @@ export function createApp() {
     const limiter = rateLimit({
         windowMs: RATE_LIMIT_WINDOW_MS,
         limit: RATE_LIMIT_MAX,
+        // Group IPv6 clients by /56 so address rotation cannot evade the limit.
+        ipv6Subnet: 56,
         standardHeaders: 'draft-7',
         legacyHeaders: false,
         handler: (req, res) => {
@@ -109,20 +111,17 @@ export function createApp() {
         },
     });
 
-    app.post('/fetch-metadata', limiter, validateUrls, async (req, res, next) => {
-        try {
-            const results = await fetchMetadataForUrls(req.validUrls);
-            res.json({
-                results,
-                summary: {
-                    requested: results.length,
-                    succeeded: results.filter((result) => result.ok).length,
-                    failed: results.filter((result) => !result.ok).length,
-                },
-            });
-        } catch (error) {
-            next(error);
-        }
+    // Express 5 forwards rejected async handlers to errorHandler.
+    app.post('/fetch-metadata', limiter, validateUrls, async (req, res) => {
+        const results = await fetchMetadataForUrls(req.validUrls);
+        res.json({
+            results,
+            summary: {
+                requested: results.length,
+                succeeded: results.filter((result) => result.ok).length,
+                failed: results.filter((result) => !result.ok).length,
+            },
+        });
     });
 
     app.use((req, res) => {
@@ -198,8 +197,10 @@ function badRequest(res, message) {
     });
 }
 
-// The unused `next` is required: Express identifies error handlers by arity.
-function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-vars
+// Express identifies error handlers by their four-argument signature.
+function errorHandler(err, req, res, next) {
+    if (res.headersSent) return next(err);
+
     if (err?.name === 'CorsError') {
         return res.status(403).json({
             error: { code: err.code, message: err.message },

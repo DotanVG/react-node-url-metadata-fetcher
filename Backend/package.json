@@ -11,7 +11,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --watch"
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --watch",
+    "test:runtime": "node scripts/runtime-smoke.js"
   },
   "keywords": [
     "metadata",
@@ -27,19 +28,18 @@
     "cheerio": "^1.0.0",
     "compression": "^1.7.5",
     "cors": "^2.8.5",
-    "express": "^4.21.2",
-    "express-rate-limit": "^7.5.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
     "helmet": "^8.0.0",
     "undici": "^8.12.3"
   },
   "devDependencies": {
-    "cross-env": "^7.0.3",
-    "jest": "^29.7.0",
+    "cross-env": "^10.1.0",
+    "jest": "^30.5.2",
     "supertest": "^7.3.1"
   },
   "jest": {
     "testEnvironment": "node",
-    "setupFiles": ["<rootDir>/tests/jest.setup.cjs"],
     "transform": {},
     "testMatch": [
       "**/tests/**/*.test.js",
