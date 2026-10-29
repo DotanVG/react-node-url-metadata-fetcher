@@ -90,7 +90,7 @@ Run the API:
 ```sh
 cd Backend
 npm ci
-npm start          # http://localhost:3000  (npm run dev to watch for changes)
+npm run dev        # http://localhost:3000; sets NODE_ENV=development and watches
 ```
 
 Then, in a second terminal, run the app:
@@ -112,7 +112,8 @@ Every knob is an environment variable; see `Backend/.env.example` and `Frontend/
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3000` | Port to listen on |
-| `ALLOWED_ORIGINS` | localhost + the deployed site | Comma-separated browser origins allowed by CORS |
+| `NODE_ENV` | unset (fails closed) | Only exact `development` or `test` enable localhost CORS defaults, detailed 500 errors, and eligibility for the private-address hatch. Deployments should set `production`. `npm run dev` sets `development`; `npm start` leaves the environment unchanged. |
+| `ALLOWED_ORIGINS` | deployed site (+ localhost only in explicit dev/test) | Comma-separated browser origins allowed by CORS; an explicit list overrides the defaults |
 | `MAX_URLS_PER_REQUEST` | `20` | Batch size limit |
 | `FETCH_TIMEOUT_MS` | `10000` | Per-URL network budget |
 | `MAX_HTML_BYTES` | `2097152` | Body size cap (2 MB) |
@@ -120,7 +121,8 @@ Every knob is an environment variable; see `Backend/.env.example` and `Frontend/
 | `FETCH_CONCURRENCY` | `5` | Parallel fetches per batch |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window |
 | `RATE_LIMIT_MAX` | `30` | Requests per window, per IP |
-| `ALLOW_PRIVATE_ADDRESSES` | `false` | **Requires exactly `NODE_ENV=development` or `NODE_ENV=test`. Ignored if `NODE_ENV` is unset or any other value.** When honored, permits loopback, RFC1918, carrier-grade NAT, and any TCP port. Link-local, metadata, multicast, and reserved ranges stay blocked. |
+| `TRUST_PROXY_HOPS` | `1` | Numeric proxy trust depth, integer `0`-`5` only. `0` uses the socket IP and ignores XFF. With enough XFF entries, `N > 0` selects the Nth entry from the right. Invalid values stop startup; never `true`. Measure before changing it; see [Proxy hop verification](#proxy-hop-verification). |
+| `ALLOW_PRIVATE_ADDRESSES` | `false` | True values are `1`/`true`/`yes`/`on`, case-insensitive, **without trimming**. Unset and all other values (including ` true`, `true `, or a trailing newline) are false. **Requires exactly `NODE_ENV=development` or `NODE_ENV=test`. Ignored if `NODE_ENV` is unset or any other value.** When honored, permits loopback, RFC1918, carrier-grade NAT, and any TCP port. Link-local, metadata, multicast, and reserved ranges stay blocked. |
 
 ### Frontend
 
@@ -316,6 +318,8 @@ cd Frontend && npm run lint
 
 The backend suite runs against a fixture HTTP server started in-process, so it never depends on the network or on a third party keeping their markup stable. It covers metadata extraction and its fallback chain, every error code, the SSRF guard (including redirect-based bypass attempts), CORS, and rate limiting.
 
+From `Backend`, `npm run test:runtime` is a separate manual smoke check: it starts and stops a local production-mode server, fetches live `iana.org` metadata, checks private-target blocking and live `httpbin.dev` redirects, then checks the 429 boundary and unlimited health endpoint. It requires public DNS/network access and fails if those upstream checks fail. It does not target a deployed API and is not part of the offline test suite or CI. The command retains those live-network assertions.
+
 ## Security
 
 This service fetches arbitrary user-supplied URLs, which is exactly the shape of a **server-side request forgery** vulnerability. The defences:
@@ -334,6 +338,35 @@ And around the edges: Helmet security headers, an origin allowlist for CORS (loo
 ## Deployment
 
 **Backend to Render.** `render.yaml` at the repo root describes the backend web service: name `react-node-url-metadata-fetcher`, Node, region Frankfurt, free plan, branch `main`, root directory `Backend`, build `npm ci`, start `npm start`, and auto-deploy on commit. The live service is not synced from this blueprint: in the Render dashboard, set **Build Command** to exactly `npm ci` (with **Root Directory** `Backend`). Repository changes do not update that dashboard setting. `healthCheckPath` is `/health`, which the API exposes as `GET /health` (and `GET /healthz`). The health check path in the Render dashboard is a separate setting. `NODE_ENV` and `ALLOWED_ORIGINS` are the env keys declared in the blueprint; set `ALLOWED_ORIGINS` to your frontend's origin. Secret values stay out of the file.
+
+The backend has no compile step: its deployment Build Command is `npm ci`, not `npm install` or `npm run build`. This installs the committed lockfile and fails on a package/lock mismatch. Checking or changing the existing service's dashboard command remains a manual owner task (issue #28).
+
+### Proxy hop verification
+
+`TRUST_PROXY_HOPS` defaults to **1**, preserving the previous `app.set('trust proxy', 1)` behavior. Render is behind Cloudflare, but reports of **3** hops are not a measurement of this service. The repository has no verified production chain, so do not switch to 3 on that basis. A too-small value can group users under a proxy IP; a too-large value can trust a client-supplied XFF entry. Never set trust proxy to `true`.
+
+Dotan can measure the chain during a short, controlled diagnostic session:
+
+1. In a temporary, owner-approved backend revision, insert this middleware immediately after `app.set('trust proxy', TRUST_PROXY_HOPS)` in `createApp`. Send only your own `/health` probes during the observation window. This is a documentation example; no diagnostic logging is enabled by default.
+
+   ```js
+   app.use((req, res, next) => {
+       if (req.path === '/health') {
+           console.info('proxy-check', JSON.stringify({
+               ip: req.ip,
+               socket: req.socket.remoteAddress,
+               xff: req.get('X-Forwarded-For') ?? '',
+           }));
+       }
+       next();
+   });
+   ```
+
+2. From two independent networks (for example home Wi-Fi and mobile data), record each network's known public egress IP and send a request with **no custom XFF**. Compare it with `req.ip` and the raw XFF chain in Render's logs. Treat XFF as untrusted input. The socket is hop 0; count XFF entries **from right to left** to the known client IP to find N. With fewer than N entries Express uses the farthest available address, so a short chain alone does not establish the configured depth. Check IPv4/IPv6 and every supported ingress path; a shorter bypass path makes a larger count unsafe. If the observations disagree, leave the default and investigate the ingress rather than guessing.
+3. After confirming the chain, Dotan can set **Render dashboard > service > Environment > `TRUST_PROXY_HOPS`** to the measured integer `0`-`5` and apply it through the normal owner-controlled deployment process. `0` is for direct access without a reverse proxy. An empty string, whitespace, decimals, out-of-range values or `true` cause a clear startup error; leave the variable absent to use 1.
+4. Recheck that each network resolves to its actual public client IP and has an independent rate-limit bucket. From one network, changing only a spoofed leftmost XFF must not reset its quota. Remove the temporary logging immediately after verification; IP addresses are personal data, so keep observations restricted and short-lived. No public IP-debug endpoint is needed.
+
+See the [Express proxy guide](https://expressjs.com/en/guide/behind-proxies/) and [express-rate-limit proxy troubleshooting](https://express-rate-limit.mintlify.app/guides/troubleshooting-proxy-issues) for the hop-count semantics and measurement approach.
 
 **Frontend to Netlify.** The Netlify site builds from `Frontend` with `npm run build` and publishes `Frontend/dist`. The repo has no `netlify.toml` and no `_redirects` file. Vite copies `Frontend/public` into the publish directory. `Frontend/public/404.html` is a real not-found page, so an unknown path is a 404. The app is a single page with no client-side router, and it does not rewrite every path to `index.html`. `Frontend/public/_headers` is what Netlify reads for the report-only Content-Security-Policy, the other security headers, and cache rules. Set `VITE_API_URL` in the Netlify environment.
 

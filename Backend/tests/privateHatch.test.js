@@ -57,12 +57,21 @@ describe('ALLOW_PRIVATE_ADDRESSES environment gate', () => {
         ['Development', 'true', false],
         ['TEST', 'true', false],
         ['development ', 'true', false],
+        ['development\n', 'true', false],
+        ['test\n', 'true', false],
+        ['production\n', 'true', false],
+        ['devel\u043epment', 'true', false],
+        ['t\u0435st', 'true', false],
         ['development', 'true', true],
         ['test', 'true', true],
         ['development', 'false', false],
         ['test', 'false', false],
         ['development', undefined, false],
         ['test', undefined, false],
+        ...['development', 'test'].flatMap((env) => [
+            ...['1', 'TRUE', 'TrUe', 'yes', 'YES', 'on', 'ON'].map((flag) => [env, flag, true]),
+            ...['', '0', 'FALSE', 'no', 'off', ' true', 'true ', 'true\n', '1\n', 'tru\u0435'].map((flag) => [env, flag, false]),
+        ]),
     ])('NODE_ENV=%p, ALLOW_PRIVATE_ADDRESSES=%p enables the hatch: %p', (nodeEnv, hatch, enabled) => {
         const env = { ...process.env };
         delete env.NODE_ENV;

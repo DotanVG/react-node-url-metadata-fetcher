@@ -7,8 +7,8 @@ import { ERROR_CODES, MetadataError } from './errors.js';
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 // Default ports collapse to '' in the URL parser. Anything else is rejected
 // before DNS. ALLOW_PRIVATE_ADDRESSES is the local-dev hatch used by the
-// fixture server, which binds an ephemeral port. The hatch is ignored when
-// NODE_ENV is production.
+// fixture server, which binds an ephemeral port. The hatch requires exactly
+// NODE_ENV=development or NODE_ENV=test; unset and all other values fail closed.
 const ALLOWED_PORTS = new Set(['', '80', '443']);
 
 const IPV4_BLOCKED_RANGES = [

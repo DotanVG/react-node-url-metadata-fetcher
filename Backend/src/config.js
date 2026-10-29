@@ -10,6 +10,14 @@ const bool = (value, fallback) => {
     return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
 };
 
+const proxyHops = (value) => {
+    if (value === undefined) return 1;
+    if (!['0', '1', '2', '3', '4', '5'].includes(value)) {
+        throw new Error('TRUST_PROXY_HOPS must be an integer from 0 to 5 (unset defaults to 1).');
+    }
+    return Number(value);
+};
+
 const list = (value, fallback) =>
     value
         ? value
@@ -18,19 +26,22 @@ const list = (value, fallback) =>
               .filter(Boolean)
         : fallback;
 
-export const NODE_ENV = process.env.NODE_ENV || 'development';
+export const NODE_ENV = process.env.NODE_ENV;
 export const IS_PRODUCTION = NODE_ENV === 'production';
 export const IS_TEST = NODE_ENV === 'test';
+// Only explicit local environments may enable development conveniences.
+export const IS_DEV_OR_TEST = NODE_ENV === 'development' || IS_TEST;
 
 export const PORT = int(process.env.PORT, 3000);
+export const TRUST_PROXY_HOPS = proxyHops(process.env.TRUST_PROXY_HOPS);
 
 // Origins allowed to call the API from a browser. Requests without an `Origin`
 // header (curl, server-to-server, health checks) are always allowed.
-// Loopback dev servers stay off the production default; set ALLOWED_ORIGINS
+// Loopback dev servers require an explicit dev/test environment; set ALLOWED_ORIGINS
 // explicitly when a deployment needs a different list.
-const DEV_ORIGINS = IS_PRODUCTION
-    ? []
-    : ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'];
+const DEV_ORIGINS = IS_DEV_OR_TEST
+    ? ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173']
+    : [];
 
 export const ALLOWED_ORIGINS = list(process.env.ALLOWED_ORIGINS, [
     ...DEV_ORIGINS,
@@ -65,7 +76,7 @@ export const RATE_LIMIT_MAX = int(process.env.RATE_LIMIT_MAX, 30);
 // or test NODE_ENV; unset and unknown values fail closed. Link-local, metadata,
 // multicast, and other always-blocked ranges stay closed either way.
 export const ALLOW_PRIVATE_ADDRESSES =
-    ['development', 'test'].includes(process.env.NODE_ENV) &&
+    IS_DEV_OR_TEST &&
     bool(process.env.ALLOW_PRIVATE_ADDRESSES, false);
 
 export const USER_AGENT =
