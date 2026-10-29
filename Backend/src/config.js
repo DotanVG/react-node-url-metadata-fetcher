@@ -26,10 +26,14 @@ export const PORT = int(process.env.PORT, 3000);
 
 // Origins allowed to call the API from a browser. Requests without an `Origin`
 // header (curl, server-to-server, health checks) are always allowed.
+// Loopback dev servers stay off the production default; set ALLOWED_ORIGINS
+// explicitly when a deployment needs a different list.
+const DEV_ORIGINS = IS_PRODUCTION
+    ? []
+    : ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'];
+
 export const ALLOWED_ORIGINS = list(process.env.ALLOWED_ORIGINS, [
-    'http://localhost:5173',
-    'http://localhost:4173',
-    'http://127.0.0.1:5173',
+    ...DEV_ORIGINS,
     'https://react-node-url-mdata-fetch-dotanv.netlify.app',
 ]);
 
@@ -56,12 +60,12 @@ export const RATE_LIMIT_WINDOW_MS = int(
 );
 export const RATE_LIMIT_MAX = int(process.env.RATE_LIMIT_MAX, 30);
 
-// Escape hatch used by the test suite so it can point at a loopback fixture
-// server. Never enable this in production: it re-opens the SSRF door.
-export const ALLOW_PRIVATE_ADDRESSES = bool(
-    process.env.ALLOW_PRIVATE_ADDRESSES,
-    false
-);
+// Local-dev hatch for the in-process fixture. It permits loopback, RFC1918,
+// carrier-grade NAT, and non-standard ports. Ignored when NODE_ENV is
+// production, even if the variable is set. Link-local, metadata, multicast,
+// and other always-blocked ranges stay closed either way.
+export const ALLOW_PRIVATE_ADDRESSES =
+    !IS_PRODUCTION && bool(process.env.ALLOW_PRIVATE_ADDRESSES, false);
 
 export const USER_AGENT =
     process.env.USER_AGENT ||

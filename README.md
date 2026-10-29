@@ -63,7 +63,7 @@ The full image preview opens only after a click, keyboard activation or tap. Clo
 │                    │        { results, summary }        │                      │
 │  • wakes API on    │                                    │  • SSRF guard        │
 │    load via /health│        GET /health                 │  • per-hop redirect  │
-│  • sanitises text  │ ─────────────────────────────────▶ │    revalidation      │
+│  • text rendered   │ ─────────────────────────────────▶ │    revalidation      │
 │  • JSON/CSV export │                                    │  • timeout + size cap│
 └────────────────────┘                                    │  • cheerio parsing   │
                                                           └──────────┬───────────┘
@@ -120,7 +120,7 @@ Every knob is an environment variable; see `Backend/.env.example` and `Frontend/
 | `FETCH_CONCURRENCY` | `5` | Parallel fetches per batch |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window |
 | `RATE_LIMIT_MAX` | `30` | Requests per window, per IP |
-| `ALLOW_PRIVATE_ADDRESSES` | `false` | **Local development only.** Permits loopback/RFC1918 targets. Link-local and multicast stay blocked regardless. |
+| `ALLOW_PRIVATE_ADDRESSES` | `false` | **Local development only. Ignored when `NODE_ENV=production`.** When honored, permits loopback, RFC1918, carrier-grade NAT, and any TCP port. Link-local, metadata, multicast, and reserved ranges stay blocked. |
 
 ### Frontend
 
@@ -296,6 +296,7 @@ Every failure carries a stable `code` and a message written for a person, not a 
 | `INVALID_URL` | Not parseable as a web address |
 | `UNSUPPORTED_PROTOCOL` | Something other than `http:` or `https:` |
 | `BLOCKED_HOST` | Resolves to a private or internal address |
+| `BLOCKED_PORT` | Port is not 80 or 443 |
 | `DNS_ERROR` | Domain does not resolve |
 | `CONNECTION_REFUSED` | Host refused the connection |
 | `TIMEOUT` | Exceeded `FETCH_TIMEOUT_MS` |
@@ -319,19 +320,20 @@ The backend suite runs against a fixture HTTP server started in-process, so it n
 
 This service fetches arbitrary user-supplied URLs, which is exactly the shape of a **server-side request forgery** vulnerability. The defences:
 
-- **Private address blocking.** Host names are resolved before the request, and any answer in loopback, RFC1918, carrier-grade NAT, link-local (including `169.254.169.254`, the cloud instance-metadata address), multicast or reserved space is refused.
-- **Every redirect hop is re-validated.** An open redirect on a public site cannot walk the server into the private network, or off onto a `file:` URL.
-- **Protocol allowlist.** Only `http:` and `https:`, at every hop.
+- **Private address blocking.** Host names are resolved before the request, and any answer in loopback, RFC1918, carrier-grade NAT, link-local (including `169.254.169.254`, the cloud instance-metadata address), multicast or reserved space is refused. IPv4-mapped, SIIT, NAT64, IPv4-compatible and 6to4 literals are unwrapped and the embedded IPv4 is checked against the same list.
+- **Connect-time DNS pinning.** The socket resolves through an undici dispatcher whose lookup checks every returned address again and connects only to a vetted one, so a rebinding answer after the pre-check cannot redirect the connection.
+- **Every redirect hop is re-validated.** An open redirect on a public site cannot walk the server into the private network, or off onto a `file:` URL. Each hop uses the same pinned lookup.
+- **Protocol and port allowlist.** Only `http:` and `https:`, and only ports 80 and 443, at every hop.
 - **Time and size limits.** A hung or enormous upstream cannot hold a worker or exhaust memory.
-- **Even the escape hatch is narrow.** `ALLOW_PRIVATE_ADDRESSES` opens loopback for local development, but never link-local or multicast.
+- **The escape hatch is dev-only and ignored in production.** `ALLOW_PRIVATE_ADDRESSES` permits loopback, RFC1918, carrier-grade NAT, and non-standard ports for local development. `NODE_ENV=production` ignores the variable even if it is set. Link-local (including cloud metadata), multicast, and other always-blocked ranges stay closed.
 
-And around the edges: Helmet security headers, an origin allowlist for CORS, per-IP rate limiting, a 100 KB request body cap, output sanitising with DOMPurify before any remote text is rendered, `javascript:`/`data:` image URLs stripped server-side, and CSV export hardened against spreadsheet formula injection.
+And around the edges: Helmet security headers, an origin allowlist for CORS (loopback origins are dev-only), per-IP rate limiting, a 100 KB request body cap, remote text rendered as React text rather than HTML, `javascript:`/`data:` image URLs stripped server-side, and CSV export hardened against spreadsheet formula injection.
 
 > **A note on CSRF:** earlier versions used `csurf`, which has been deprecated since 2022. It was removed rather than replaced. This API is stateless and credential-free. It has no cookies, sessions or logins to forge a request against, so a CSRF token protected nothing while adding a required round-trip that broke on cross-site cookie policies. The origin allowlist and rate limiting provide the protections that apply here.
 
 ## Deployment
 
-**Backend to Render.** `render.yaml` at the repo root matches the live web service: name `react-node-url-metadata-fetcher`, Node, region Frankfurt, free plan, branch `main`, root directory `Backend`, build `npm install`, start `npm start`, and auto-deploy on commit. `healthCheckPath` is `/health`, which the API exposes as `GET /health` (and `GET /healthz`). The health check path in the Render dashboard is a separate setting. `NODE_ENV` and `ALLOWED_ORIGINS` are the env keys declared in the blueprint; set `ALLOWED_ORIGINS` to your frontend's origin. Secret values stay out of the file.
+**Backend to Render.** `render.yaml` at the repo root matches the live web service: name `react-node-url-metadata-fetcher`, Node, region Frankfurt, free plan, branch `main`, root directory `Backend`, build `npm ci`, start `npm start`, and auto-deploy on commit. `healthCheckPath` is `/health`, which the API exposes as `GET /health` (and `GET /healthz`). The health check path in the Render dashboard is a separate setting. `NODE_ENV` and `ALLOWED_ORIGINS` are the env keys declared in the blueprint; set `ALLOWED_ORIGINS` to your frontend's origin. Secret values stay out of the file.
 
 **Frontend to Netlify.** The Netlify site builds from `Frontend` with `npm run build` and publishes `Frontend/dist`. The repo has no `netlify.toml` and no `_redirects` file. Vite copies `Frontend/public` into the publish directory. `Frontend/public/404.html` is a real not-found page, so an unknown path is a 404. The app is a single page with no client-side router, and it does not rewrite every path to `index.html`. `Frontend/public/_headers` is what Netlify reads for the report-only Content-Security-Policy, the other security headers, and cache rules. Set `VITE_API_URL` in the Netlify environment.
 

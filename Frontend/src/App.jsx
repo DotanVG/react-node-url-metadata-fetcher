@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import DOMPurify from 'dompurify';
 import { ToastContainer, toast } from 'react-toastify';
 import { FiLink } from 'react-icons/fi';
 import 'react-toastify/dist/ReactToastify.css';
@@ -28,21 +27,6 @@ const SAMPLE_URLS = [
     'https://beat-em-pie.vercel.app',
     'https://dotanv.itch.io',
 ];
-
-/** Strips any markup the remote page smuggled into its own metadata. */
-const sanitizeText = (value) =>
-    typeof value === 'string'
-        ? DOMPurify.sanitize(value, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
-        : value;
-
-const sanitizeResult = (result) => ({
-    ...result,
-    title: sanitizeText(result.title),
-    description: sanitizeText(result.description),
-    siteName: sanitizeText(result.siteName),
-    author: sanitizeText(result.author),
-    imageAlt: sanitizeText(result.imageAlt),
-});
 
 function App() {
     const { theme, toggleTheme } = useTheme();
@@ -126,7 +110,7 @@ function App() {
                 const payload = await fetchMetadata(targetUrls);
                 backend.reportReachable();
 
-                setResults(payload.results.map(sanitizeResult));
+                setResults(payload.results);
                 setSummary(payload.summary ?? null);
 
                 // A clean run needs no toast. The results appear right below.

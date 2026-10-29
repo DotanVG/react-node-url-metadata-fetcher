@@ -98,16 +98,114 @@ describe('assertPublicUrl', () => {
     });
 
     it.each([
-        'http://localhost:3000',
+        'http://localhost',
         'http://app.localhost',
-        'http://127.0.0.1:8080',
+        'http://127.0.0.1',
         'http://169.254.169.254/latest/meta-data/',
-        'http://[::1]:9000',
+        'http://[::1]',
         'http://192.168.0.10',
     ])('blocks %s', async (input) => {
         await expect(assertPublicUrl(parseUrl(input))).rejects.toThrow(
             expect.objectContaining({ code: ERROR_CODES.BLOCKED_HOST })
         );
+    });
+
+    // These literals only show their embedded IPv4 after URL normalisation
+    // (for example [::ffff:169.254.169.254] becomes [::ffff:a9fe:a9fe]), so
+    // they have to be judged through parseUrl, not a dotted-decimal helper.
+    it.each([
+        'http://[::ffff:a9fe:a9fe]/', // IPv4-mapped 169.254.169.254
+        'http://[::ffff:169.254.169.254]/',
+        'http://[::ffff:7f00:1]/', // IPv4-mapped 127.0.0.1
+        'http://[::ffff:127.0.0.1]/',
+        'http://[::ffff:0:a9fe:a9fe]/', // SIIT IPv4-translated metadata
+        'http://[64:ff9b::a9fe:a9fe]/', // NAT64 well-known prefix
+        'http://[64:ff9b::169.254.169.254]/',
+        'http://[64:ff9b:1::7f00:1]/', // NAT64 local-use prefix, loopback
+        'http://[::a9fe:a9fe]/', // IPv4-compatible metadata
+        'http://[::7f00:1]/', // IPv4-compatible loopback
+        'http://[::10.0.0.1]/',
+        'http://[2002:a9fe:a9fe::]/', // 6to4 embedding metadata
+        'http://[2002:7f00:1::]/', // 6to4 embedding loopback
+        'http://[fc00::1]/',
+        'http://[fd00::1]/',
+        'http://[fe80::1]/',
+        'http://[ff00::1]/',
+        'http://[::]/',
+    ])('blocks embedded or private literal %s', async (input) => {
+        const lookupCalls = lookup.mock.calls.length;
+        await expect(assertPublicUrl(parseUrl(input))).rejects.toThrow(
+            expect.objectContaining({ code: ERROR_CODES.BLOCKED_HOST })
+        );
+        expect(lookup).toHaveBeenCalledTimes(lookupCalls);
+    });
+
+    it.each([
+        'http://[::ffff:808:808]/', // IPv4-mapped 8.8.8.8
+        'http://[64:ff9b::808:808]/', // NAT64 embedding a public IPv4
+        'http://[2002:808:808::]/', // 6to4 embedding a public IPv4
+        'http://[2606:4700:4700::1111]/',
+    ])('allows public literal %s', async (input) => {
+        await expect(assertPublicUrl(parseUrl(input))).resolves.toBeUndefined();
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        'http://2130706433/', // decimal 127.0.0.1
+        'http://3232235777/', // decimal 192.168.1.1
+        'http://2852039166/', // decimal 169.254.169.254
+        'http://0x7f000001/', // hex 127.0.0.1
+        'http://0x7f.0x0.0x0.0x1/',
+        'http://0xa9fea9fe/', // hex metadata
+        'http://0xC0A80001/', // hex 192.168.0.1
+        'http://0177.0.0.1/', // octal loopback
+        'http://0300.0250.0.1/', // octal 192.168.0.1
+        'http://0251.0376.0251.0376/', // octal metadata
+    ])('blocks obfuscated IPv4 literal %s before DNS', async (input) => {
+        await expect(assertPublicUrl(parseUrl(input))).rejects.toThrow(
+            expect.objectContaining({ code: ERROR_CODES.BLOCKED_HOST })
+        );
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        'http://192.31.196.1/',
+        'http://192.52.193.1/',
+        'http://192.175.48.1/',
+        'http://[2001::1]/', // Teredo
+        'http://[100::1]/', // discard-only
+        'http://[2001:10::1]/', // ORCHID
+        'http://[2001:20::1]/', // ORCHIDv2
+        'http://[fec0::1]/', // site-local
+    ])('blocks special-use address %s', async (input) => {
+        await expect(assertPublicUrl(parseUrl(input))).rejects.toThrow(
+            expect.objectContaining({ code: ERROR_CODES.BLOCKED_HOST })
+        );
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        'http://example.com:8080/',
+        'https://example.com:8443/',
+        'http://1.1.1.1:22/',
+        'https://[2606:4700:4700::1111]:444/',
+        'http://example.com:4433/path',
+    ])('rejects %s before any DNS lookup', async (input) => {
+        await expect(assertPublicUrl(parseUrl(input))).rejects.toThrow(
+            expect.objectContaining({ code: ERROR_CODES.BLOCKED_PORT })
+        );
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        'http://1.1.1.1/',
+        'http://1.1.1.1:80/',
+        'https://1.1.1.1/',
+        'https://1.1.1.1:443/',
+        'http://1.1.1.1:443/',
+        'https://1.1.1.1:80/',
+    ])('allows web port on %s', async (input) => {
+        await expect(assertPublicUrl(parseUrl(input))).resolves.toBeUndefined();
     });
 
     it('allows a public IP literal', async () => {
@@ -130,6 +228,9 @@ describe('assertPublicUrl', () => {
         { name: 'private IPv4', addresses: [{ address: '127.0.0.1', family: 4 }] },
         { name: 'mixed public/private IPv4', addresses: [{ address: '1.1.1.1', family: 4 }, { address: '10.0.0.1', family: 4 }] },
         { name: 'mixed public IPv4/private IPv6', addresses: [{ address: '1.1.1.1', family: 4 }, { address: '::1', family: 6 }] },
+        { name: 'IPv4-mapped metadata', addresses: [{ address: '::ffff:a9fe:a9fe', family: 6 }] },
+        { name: 'NAT64 metadata', addresses: [{ address: '64:ff9b::a9fe:a9fe', family: 6 }] },
+        { name: '6to4 loopback', addresses: [{ address: '2002:7f00:1::', family: 6 }] },
     ])('blocks $name DNS answers', async ({ addresses }) => {
         lookup.mockResolvedValue(addresses);
 
@@ -148,12 +249,23 @@ describe('assertPublicUrl', () => {
 });
 
 describe('isAlwaysBlockedAddress', () => {
-    it.each(['169.254.169.254', '169.254.0.1', '224.0.0.1', '255.255.255.255', '0.0.0.0', 'fe80::1', 'ff02::1', '::ffff:169.254.169.254'])(
-        'blocks %s regardless of configuration',
-        (ip) => {
-            expect(isAlwaysBlockedAddress(ip)).toBe(true);
-        }
-    );
+    it.each([
+        '169.254.169.254',
+        '169.254.0.1',
+        '224.0.0.1',
+        '255.255.255.255',
+        '0.0.0.0',
+        'fe80::1',
+        'ff02::1',
+        '::ffff:169.254.169.254',
+        '::ffff:a9fe:a9fe',
+        '64:ff9b::a9fe:a9fe',
+        '::a9fe:a9fe',
+        '2002:a9fe:a9fe::',
+        '::ffff:0:a9fe:a9fe',
+    ])('blocks %s regardless of configuration', (ip) => {
+        expect(isAlwaysBlockedAddress(ip)).toBe(true);
+    });
 
     it.each(['127.0.0.1', '10.0.0.1', '192.168.1.1', '8.8.8.8'])(
         'leaves %s to the configurable guard',

@@ -6,6 +6,7 @@ export const ERROR_CODES = {
     INVALID_URL: 'INVALID_URL',
     UNSUPPORTED_PROTOCOL: 'UNSUPPORTED_PROTOCOL',
     BLOCKED_HOST: 'BLOCKED_HOST',
+    BLOCKED_PORT: 'BLOCKED_PORT',
     DNS_ERROR: 'DNS_ERROR',
     CONNECTION_REFUSED: 'CONNECTION_REFUSED',
     TIMEOUT: 'TIMEOUT',
@@ -34,8 +35,18 @@ export class MetadataError extends Error {
  * Turns a thrown value from `fetch` (or our own guards) into a MetadataError
  * whose message a user can act on.
  */
-export function toMetadataError(error, url) {
+function findMetadataError(error, depth = 0) {
+    if (!error || depth > 6) return null;
     if (error instanceof MetadataError) return error;
+    // undici wraps the lookup failure; the name/code still identify it when
+    // the class identity does not survive the wrap.
+    if (error.name === 'MetadataError' && typeof error.code === 'string') return error;
+    return findMetadataError(error.cause, depth + 1);
+}
+
+export function toMetadataError(error, url) {
+    const nested = findMetadataError(error);
+    if (nested) return nested;
 
     const cause = error?.cause ?? {};
     const systemCode = cause.code || error?.code;
