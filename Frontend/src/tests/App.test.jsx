@@ -214,7 +214,7 @@ describe('App', () => {
         ).toBeInTheDocument();
     });
 
-    it('strips markup smuggled into a page title', async () => {
+    it('renders metadata as text, so markup cannot run and ampersands stay literal', async () => {
         const user = userEvent.setup();
         mockApi(() =>
             Promise.resolve(
@@ -222,8 +222,8 @@ describe('App', () => {
                     {
                         url: 'https://evil.dev/',
                         ok: true,
-                        title: '<img src=x onerror=alert(1)>Injected',
-                        description: 'safe',
+                        title: 'Tom & Jerry <img src=x onerror=alert(1)>',
+                        description: 'A & B',
                     },
                 ])
             )
@@ -234,8 +234,12 @@ describe('App', () => {
         await user.type(screen.getByLabelText(/web address/i), 'evil.dev{Enter}');
         await user.click(screen.getByRole('button', { name: /fetch metadata/i }));
 
-        await waitFor(() => expect(screen.getByText('Injected')).toBeInTheDocument());
+        const heading = await screen.findByRole('heading', { level: 4 });
+        expect(heading).toHaveTextContent('Tom & Jerry <img src=x onerror=alert(1)>');
+        expect(heading.querySelector('img')).toBeNull();
         expect(container.querySelector('img[onerror]')).toBeNull();
+        expect(screen.getByText('A & B')).toBeInTheDocument();
+        expect(screen.queryByText(/&amp;/)).not.toBeInTheDocument();
     });
 
     it('loads sample URLs from the empty state', async () => {

@@ -10,7 +10,7 @@ services:
     plan: free
     branch: main
     rootDir: Backend
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
     autoDeployTrigger: commit
     healthCheckPath: /health
@@ -18,4 +18,4 @@ services:
       - key: NODE_ENV
         value: production
       - key: ALLOWED_ORIGINS
-        value: https://react-node-url-mdata-fetch-dotanv.netlify.app,http://localhost:5173
+        value: https://react-node-url-mdata-fetch-dotanv.netlify.app

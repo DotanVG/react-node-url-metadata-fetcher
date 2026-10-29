@@ -1,10 +1,14 @@
 import dns from 'node:dns/promises';
-import net from 'node:net';
+import net, { BlockList } from 'node:net';
 
 import { ALLOW_PRIVATE_ADDRESSES } from './config.js';
 import { ERROR_CODES, MetadataError } from './errors.js';
 
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+// Default ports collapse to '' in the URL parser. Anything else is rejected
+// before DNS. ALLOW_PRIVATE_ADDRESSES is the local-dev hatch used by the
+// fixture server, which binds an ephemeral port; production never sets it.
+const ALLOWED_PORTS = new Set(['', '80', '443']);
 
 const IPV4_BLOCKED_RANGES = [
     ['0.0.0.0', 8], // "this" network
@@ -24,36 +28,6 @@ const IPV4_BLOCKED_RANGES = [
     ['240.0.0.0', 4], // reserved + broadcast
 ];
 
-const ipv4ToInt = (ip) =>
-    ip.split('.').reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0;
-
-function isBlockedIpv4(ip) {
-    const value = ipv4ToInt(ip);
-    return IPV4_BLOCKED_RANGES.some(([range, bits]) => {
-        const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
-        return (value & mask) === (ipv4ToInt(range) & mask);
-    });
-}
-
-function isBlockedIpv6(ip) {
-    const normalized = ip.toLowerCase().split('%')[0]; // strip zone index
-
-    // IPv4-mapped (::ffff:1.2.3.4) and NAT64 (64:ff9b::1.2.3.4) addresses are
-    // really IPv4 in a trench coat, so unwrap and judge them as such.
-    const embedded = normalized.match(/(\d+\.\d+\.\d+\.\d+)$/);
-    if (embedded && net.isIPv4(embedded[1])) {
-        return isBlockedIpv4(embedded[1]);
-    }
-
-    if (normalized === '::' || normalized === '::1') return true; // unspecified / loopback
-    if (/^f[cd][0-9a-f]{2}:/.test(normalized)) return true; // fc00::/7 unique local
-    if (/^fe[89ab][0-9a-f]:/.test(normalized)) return true; // fe80::/10 link-local
-    if (/^ff[0-9a-f]{2}:/.test(normalized)) return true; // ff00::/8 multicast
-    if (normalized.startsWith('2001:db8:')) return true; // documentation
-
-    return false;
-}
-
 // Ranges that stay blocked even when ALLOW_PRIVATE_ADDRESSES is on. Cloud
 // instance metadata lives at 169.254.169.254, and no local-development story
 // justifies reaching it, so the escape hatch never opens these.
@@ -64,36 +38,182 @@ const ALWAYS_BLOCKED_IPV4 = [
     ['240.0.0.0', 4], // reserved + broadcast
 ];
 
+function subnetList(ranges) {
+    const list = new BlockList();
+    for (const [address, prefix] of ranges) {
+        list.addSubnet(address, prefix, 'ipv4');
+    }
+    return list;
+}
+
+const blockedIpv4 = subnetList(IPV4_BLOCKED_RANGES);
+const alwaysBlockedIpv4 = subnetList(ALWAYS_BLOCKED_IPV4);
+
+const blockedIpv6 = new BlockList();
+blockedIpv6.addAddress('::', 'ipv6');
+blockedIpv6.addAddress('::1', 'ipv6');
+blockedIpv6.addSubnet('fc00::', 7, 'ipv6'); // unique local
+blockedIpv6.addSubnet('fe80::', 10, 'ipv6'); // link-local
+blockedIpv6.addSubnet('ff00::', 8, 'ipv6'); // multicast
+blockedIpv6.addSubnet('2001:db8::', 32, 'ipv6'); // documentation
+blockedIpv6.addSubnet('64:ff9b:1::', 48, 'ipv6'); // local-use NAT64
+
+const alwaysBlockedIpv6 = new BlockList();
+alwaysBlockedIpv6.addSubnet('fe80::', 10, 'ipv6');
+alwaysBlockedIpv6.addSubnet('ff00::', 8, 'ipv6');
+
+function bareIp(ip) {
+    if (typeof ip !== 'string') return '';
+    return ip.trim().toLowerCase().replace(/^\[|\]$/g, '').split('%')[0];
+}
+
+/** Expands an IPv6 literal, including a dotted IPv4 tail, to 16 bytes. */
+function ipv6Bytes(ip) {
+    if (!net.isIPv6(ip)) return null;
+
+    let text = ip;
+    const dotted = text.match(/^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/);
+    if (dotted && net.isIPv4(dotted[2])) {
+        const octets = dotted[2].split('.').map((part) => Number(part));
+        if (octets.some((octet) => octet > 255)) return null;
+        const high = ((octets[0] << 8) | octets[1]).toString(16);
+        const low = ((octets[2] << 8) | octets[3]).toString(16);
+        text = `${dotted[1]}${high}:${low}`;
+    }
+
+    const halves = text.split('::');
+    if (halves.length > 2) return null;
+    const head = halves[0] ? halves[0].split(':') : [];
+    const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+    if (halves.length === 1 && head.length !== 8) return null;
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) return null;
+
+    const groups = [...head, ...Array.from({ length: missing }, () => '0'), ...tail];
+    if (groups.length !== 8) return null;
+
+    const bytes = Buffer.alloc(16);
+    for (let index = 0; index < 8; index += 1) {
+        if (!/^[0-9a-f]{1,4}$/.test(groups[index])) return null;
+        const value = Number.parseInt(groups[index], 16);
+        bytes[index * 2] = value >> 8;
+        bytes[index * 2 + 1] = value & 0xff;
+    }
+    return bytes;
+}
+
+function ipv4At(bytes, offset) {
+    return `${bytes[offset]}.${bytes[offset + 1]}.${bytes[offset + 2]}.${bytes[offset + 3]}`;
+}
+
+function isZero(bytes, from, to) {
+    for (let index = from; index < to; index += 1) {
+        if (bytes[index] !== 0) return false;
+    }
+    return true;
+}
+
+/**
+ * IPv4 carried inside an IPv6 literal. URL parsing rewrites dotted tails to
+ * hex (`::ffff:169.254.169.254` becomes `::ffff:a9fe:a9fe`), so the embedded
+ * address has to be recovered from the bytes. `::` and `::1` stay unspecified
+ * and loopback; they are not 0.0.0.0 and 0.0.0.1.
+ */
+function embeddedIpv4(ip) {
+    const bytes = ipv6Bytes(ip);
+    if (!bytes) return null;
+
+    // IPv4-mapped ::ffff:0:0/96.
+    if (isZero(bytes, 0, 10) && bytes[10] === 0xff && bytes[11] === 0xff) {
+        return ipv4At(bytes, 12);
+    }
+
+    // SIIT IPv4-translated ::ffff:0:0:0/96.
+    if (
+        isZero(bytes, 0, 8) &&
+        bytes[8] === 0xff &&
+        bytes[9] === 0xff &&
+        isZero(bytes, 10, 12)
+    ) {
+        return ipv4At(bytes, 12);
+    }
+
+    // NAT64 well-known prefix 64:ff9b::/96. The IPv4 is the last 32 bits.
+    if (
+        bytes[0] === 0x00 &&
+        bytes[1] === 0x64 &&
+        bytes[2] === 0xff &&
+        bytes[3] === 0x9b &&
+        isZero(bytes, 4, 12)
+    ) {
+        return ipv4At(bytes, 12);
+    }
+
+    // NAT64 local-use prefix 64:ff9b:1::/48 (RFC 6052 /48 layout).
+    if (
+        bytes[0] === 0x00 &&
+        bytes[1] === 0x64 &&
+        bytes[2] === 0xff &&
+        bytes[3] === 0x9b &&
+        bytes[4] === 0x00 &&
+        bytes[5] === 0x01
+    ) {
+        return `${bytes[6]}.${bytes[7]}.${bytes[9]}.${bytes[10]}`;
+    }
+
+    // 6to4 2002::/16 embeds IPv4 in bits 16-47.
+    if (bytes[0] === 0x20 && bytes[1] === 0x02) {
+        return ipv4At(bytes, 2);
+    }
+
+    // Deprecated IPv4-compatible ::/96.
+    if (isZero(bytes, 0, 12)) {
+        const embedded = ipv4At(bytes, 12);
+        if (embedded === '0.0.0.0' || embedded === '0.0.0.1') return null;
+        return embedded;
+    }
+
+    return null;
+}
+
+function listed(list, ip, family) {
+    try {
+        return list.check(ip, family);
+    } catch {
+        return true; // unparseable for this family: refuse rather than guess
+    }
+}
+
 /** True when an IP literal points somewhere a public web page never should. */
 export function isPrivateAddress(ip) {
-    if (net.isIPv4(ip)) return isBlockedIpv4(ip);
-    if (net.isIPv6(ip)) return isBlockedIpv6(ip);
-    return true; // not a recognisable IP: refuse rather than guess
+    const bare = bareIp(ip);
+    if (net.isIPv4(bare)) return listed(blockedIpv4, bare, 'ipv4');
+    if (!net.isIPv6(bare)) return true; // not a recognisable IP: refuse rather than guess
+    if (listed(blockedIpv6, bare, 'ipv6')) return true;
+    // BlockList folds IPv4-mapped ::ffff:0:0/96 into the IPv4 list. NAT64,
+    // 6to4, SIIT and IPv4-compatible addresses are unwrapped and re-checked.
+    if (listed(blockedIpv4, bare, 'ipv6')) return true;
+    const embedded = embeddedIpv4(bare);
+    return embedded ? listed(blockedIpv4, embedded, 'ipv4') : false;
 }
 
 /** Subset of isPrivateAddress that no configuration flag can unblock. */
 export function isAlwaysBlockedAddress(ip) {
-    const target = net.isIPv6(ip)
-        ? ip.toLowerCase().split('%')[0].match(/(\d+\.\d+\.\d+\.\d+)$/)?.[1] ?? ip
-        : ip;
+    const bare = bareIp(ip);
+    if (net.isIPv4(bare)) return listed(alwaysBlockedIpv4, bare, 'ipv4');
+    if (!net.isIPv6(bare)) return true;
+    if (listed(alwaysBlockedIpv6, bare, 'ipv6')) return true;
+    if (listed(alwaysBlockedIpv4, bare, 'ipv6')) return true;
+    const embedded = embeddedIpv4(bare);
+    return embedded ? listed(alwaysBlockedIpv4, embedded, 'ipv4') : false;
+}
 
-    if (net.isIPv4(target)) {
-        const value = ipv4ToInt(target);
-        return ALWAYS_BLOCKED_IPV4.some(([range, bits]) => {
-            const mask = (0xffffffff << (32 - bits)) >>> 0;
-            return (value & mask) === (ipv4ToInt(range) & mask);
-        });
-    }
-
-    if (net.isIPv6(target)) {
-        const normalized = target.toLowerCase();
-        return (
-            /^fe[89ab][0-9a-f]:/.test(normalized) || // link-local
-            /^ff[0-9a-f]{2}:/.test(normalized) // multicast
-        );
-    }
-
-    return true;
+/** Same decision assertPublicUrl and the connect-time lookup both apply. */
+export function isBlockedAddress(ip) {
+    return (
+        isAlwaysBlockedAddress(ip) ||
+        (!ALLOW_PRIVATE_ADDRESSES && isPrivateAddress(ip))
+    );
 }
 
 /**
@@ -143,13 +263,17 @@ export function parseUrl(input) {
  * 127.0.0.1 is rejected too.
  */
 export async function assertPublicUrl(url) {
-    const hostname = url.hostname.replace(/^\[|\]$/g, ''); // unwrap [::1]
-    const isBanned = (ip) =>
-        isAlwaysBlockedAddress(ip) ||
-        (!ALLOW_PRIVATE_ADDRESSES && isPrivateAddress(ip));
+    if (!ALLOW_PRIVATE_ADDRESSES && !ALLOWED_PORTS.has(url.port)) {
+        throw new MetadataError(
+            ERROR_CODES.BLOCKED_PORT,
+            `Only ports 80 and 443 can be fetched, and this address uses port ${url.port}.`
+        );
+    }
+
+    const hostname = url.hostname.replace(/^\[|\]$/g, '').split('%')[0]; // unwrap [::1]
 
     if (net.isIP(hostname)) {
-        if (isBanned(hostname)) throw blockedHostError(url.hostname);
+        if (isBlockedAddress(hostname)) throw blockedHostError(url.hostname);
         return;
     }
 
@@ -170,7 +294,7 @@ export async function assertPublicUrl(url) {
         );
     }
 
-    if (!addresses.length || addresses.some(({ address }) => isBanned(address))) {
+    if (!addresses.length || addresses.some(({ address }) => isBlockedAddress(address))) {
         throw blockedHostError(url.hostname);
     }
 }

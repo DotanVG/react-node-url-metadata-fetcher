@@ -26,10 +26,14 @@ export const PORT = int(process.env.PORT, 3000);
 
 // Origins allowed to call the API from a browser. Requests without an `Origin`
 // header (curl, server-to-server, health checks) are always allowed.
+// Loopback dev servers stay off the production default; set ALLOWED_ORIGINS
+// explicitly when a deployment needs a different list.
+const DEV_ORIGINS = IS_PRODUCTION
+    ? []
+    : ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173'];
+
 export const ALLOWED_ORIGINS = list(process.env.ALLOWED_ORIGINS, [
-    'http://localhost:5173',
-    'http://localhost:4173',
-    'http://127.0.0.1:5173',
+    ...DEV_ORIGINS,
     'https://react-node-url-mdata-fetch-dotanv.netlify.app',
 ]);
 

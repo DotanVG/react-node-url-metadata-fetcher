@@ -1,3 +1,6 @@
+import dns from 'node:dns/promises';
+import { Agent, fetch as undiciFetch } from 'undici';
+
 import {
     FETCH_TIMEOUT_MS,
     MAX_HTML_BYTES,
@@ -10,7 +13,54 @@ import {
     MetadataError,
     toMetadataError,
 } from './errors.js';
-import { assertPublicUrl, parseUrl } from './urlSafety.js';
+import { assertPublicUrl, isBlockedAddress, parseUrl } from './urlSafety.js';
+
+/**
+ * Resolves at connect time, checks every answer against the same blocklist
+ * assertPublicUrl uses, and hands the socket exactly one vetted address.
+ * undici would otherwise resolve again after the pre-check and could be
+ * pointed at a private address by a rebinding DNS server.
+ */
+function pinnedLookup(hostname, options, callback) {
+    dns.lookup(hostname, { all: true, verbatim: true })
+        .then((addresses) => {
+            const vetted = Array.isArray(addresses)
+                ? addresses.filter((entry) => !isBlockedAddress(entry.address))
+                : [];
+            if (vetted.length === 0 || vetted.length !== addresses.length) {
+                callback(
+                    new MetadataError(
+                        ERROR_CODES.BLOCKED_HOST,
+                        `"${hostname}" points to a private or internal address, which this service will not fetch.`
+                    )
+                );
+                return;
+            }
+
+            if (options?.all) {
+                callback(null, vetted);
+                return;
+            }
+
+            const family = typeof options === 'object' ? options.family : options;
+            const chosen =
+                family === 4 || family === 6
+                    ? (vetted.find((entry) => entry.family === family) ?? vetted[0])
+                    : vetted[0];
+            callback(null, chosen.address, chosen.family);
+        })
+        .catch((error) => callback(error));
+}
+
+// One agent for the process. Every hop, including redirects and image probes,
+// connects through pinnedLookup, so a later lookup cannot swap in a private
+// address after the pre-check.
+const dispatcher = new Agent({
+    connect: {
+        lookup: pinnedLookup,
+        autoSelectFamily: false,
+    },
+});
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
@@ -68,7 +118,8 @@ export async function fetchPage(rawUrl) {
 
 /**
  * Follows redirects by hand so every hop is re-validated against the SSRF
- * guard. Resolves with the first non-redirect response, body unread.
+ * guard, both before the request and again inside the connect-time lookup.
+ * Resolves with the first non-redirect response, body unread.
  */
 export async function fetchPublic(rawUrl, { headers, signal, method = 'GET' }) {
     let url = parseUrl(rawUrl);
@@ -78,7 +129,13 @@ export async function fetchPublic(rawUrl, { headers, signal, method = 'GET' }) {
 
         let response;
         try {
-            response = await fetch(url, { method, headers, redirect: 'manual', signal });
+            response = await undiciFetch(url, {
+                method,
+                headers,
+                redirect: 'manual',
+                signal,
+                dispatcher,
+            });
         } catch (error) {
             throw toMetadataError(error, url.href);
         }
