@@ -3,7 +3,11 @@ import { PORT } from './src/config.js';
 
 const app = createApp();
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, (err) => {
+    if (err) {
+        console.error(err);
+        process.exit(1);
+    }
     console.log(`URL Metadata Fetcher API listening on port ${PORT}`);
 });
 
