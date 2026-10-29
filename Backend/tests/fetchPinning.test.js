@@ -84,6 +84,21 @@ describe('connect-time lookup on each hop', () => {
         expect(calls.get('next.example')).toBeGreaterThanOrEqual(2);
     });
 
+    it('tries the next vetted address when the first one refuses the connection', async () => {
+        jest.spyOn(dns, 'lookup').mockResolvedValue([
+            { address: '127.0.0.2', family: 4 },
+            { address: '127.0.0.1', family: 4 },
+        ]);
+
+        const { response } = await fetchPublic(`http://fallback.example:${port}/page`, {
+            headers: {},
+            signal: AbortSignal.timeout(3000),
+        });
+
+        expect(await response.text()).toContain('landed');
+        expect(hits).toEqual(['/page']);
+    });
+
     it('follows a redirect when every hop stays on the vetted address', async () => {
         jest.spyOn(dns, 'lookup').mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
 

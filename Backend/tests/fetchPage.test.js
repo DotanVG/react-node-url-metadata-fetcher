@@ -41,13 +41,14 @@ describe('fetchPublic DNS pinning', () => {
         }
     );
 
-    it('rejects when the second lookup mixes a public address with a private one', async () => {
+    it('validates every connect-time address and rejects the set when any is private', async () => {
         let calls = 0;
         lookup = jest.spyOn(dns, 'lookup').mockImplementation(async () => {
             calls += 1;
             if (calls === 1) return [{ address: '1.1.1.1', family: 4 }];
             return [
                 { address: '1.1.1.1', family: 4 },
+                { address: '2606:4700:4700::1111', family: 6 },
                 { address: '127.0.0.1', family: 4 },
             ];
         });

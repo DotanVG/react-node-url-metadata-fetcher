@@ -151,6 +151,40 @@ describe('assertPublicUrl', () => {
     });
 
     it.each([
+        'http://2130706433/', // decimal 127.0.0.1
+        'http://3232235777/', // decimal 192.168.1.1
+        'http://2852039166/', // decimal 169.254.169.254
+        'http://0x7f000001/', // hex 127.0.0.1
+        'http://0x7f.0x0.0x0.0x1/',
+        'http://0xa9fea9fe/', // hex metadata
+        'http://0xC0A80001/', // hex 192.168.0.1
+        'http://0177.0.0.1/', // octal loopback
+        'http://0300.0250.0.1/', // octal 192.168.0.1
+        'http://0251.0376.0251.0376/', // octal metadata
+    ])('blocks obfuscated IPv4 literal %s before DNS', async (input) => {
+        await expect(assertPublicUrl(parseUrl(input))).rejects.toThrow(
+            expect.objectContaining({ code: ERROR_CODES.BLOCKED_HOST })
+        );
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        'http://192.31.196.1/',
+        'http://192.52.193.1/',
+        'http://192.175.48.1/',
+        'http://[2001::1]/', // Teredo
+        'http://[100::1]/', // discard-only
+        'http://[2001:10::1]/', // ORCHID
+        'http://[2001:20::1]/', // ORCHIDv2
+        'http://[fec0::1]/', // site-local
+    ])('blocks special-use address %s', async (input) => {
+        await expect(assertPublicUrl(parseUrl(input))).rejects.toThrow(
+            expect.objectContaining({ code: ERROR_CODES.BLOCKED_HOST })
+        );
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
         'http://example.com:8080/',
         'https://example.com:8443/',
         'http://1.1.1.1:22/',

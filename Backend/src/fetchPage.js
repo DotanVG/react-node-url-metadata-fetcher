@@ -16,10 +16,11 @@ import {
 import { assertPublicUrl, isBlockedAddress, parseUrl } from './urlSafety.js';
 
 /**
- * Resolves at connect time, checks every answer against the same blocklist
- * assertPublicUrl uses, and hands the socket exactly one vetted address.
- * undici would otherwise resolve again after the pre-check and could be
- * pointed at a private address by a rebinding DNS server.
+ * Resolves at connect time and checks every answer against the same blocklist
+ * assertPublicUrl uses. One blocked address rejects the whole set, so a
+ * rebinding response cannot smuggle a private address in beside a public one.
+ * When every address is vetted, they are returned in order and the connector
+ * tries them one after another (dual-stack fallback).
  */
 function pinnedLookup(hostname, options, callback) {
     dns.lookup(hostname, { all: true, verbatim: true })
@@ -58,7 +59,10 @@ function pinnedLookup(hostname, options, callback) {
 const dispatcher = new Agent({
     connect: {
         lookup: pinnedLookup,
-        autoSelectFamily: false,
+        // Node calls lookup with `all: true` and walks the vetted list.
+        // A refused first address falls through to the next vetted one.
+        autoSelectFamily: true,
+        autoSelectFamilyAttemptTimeout: 250,
     },
 });
 

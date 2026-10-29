@@ -7,7 +7,8 @@ import { ERROR_CODES, MetadataError } from './errors.js';
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 // Default ports collapse to '' in the URL parser. Anything else is rejected
 // before DNS. ALLOW_PRIVATE_ADDRESSES is the local-dev hatch used by the
-// fixture server, which binds an ephemeral port; production never sets it.
+// fixture server, which binds an ephemeral port. The hatch is ignored when
+// NODE_ENV is production.
 const ALLOWED_PORTS = new Set(['', '80', '443']);
 
 const IPV4_BLOCKED_RANGES = [
@@ -21,6 +22,9 @@ const IPV4_BLOCKED_RANGES = [
     ['192.0.2.0', 24], // TEST-NET-1
     ['192.88.99.0', 24], // 6to4 relay anycast
     ['192.168.0.0', 16], // RFC1918 private
+    ['192.31.196.0', 24], // AS112
+    ['192.52.193.0', 24], // AMT
+    ['192.175.48.0', 24], // AS112 direct
     ['198.18.0.0', 15], // benchmarking
     ['198.51.100.0', 24], // TEST-NET-2
     ['203.0.113.0', 24], // TEST-NET-3
@@ -57,6 +61,11 @@ blockedIpv6.addSubnet('fe80::', 10, 'ipv6'); // link-local
 blockedIpv6.addSubnet('ff00::', 8, 'ipv6'); // multicast
 blockedIpv6.addSubnet('2001:db8::', 32, 'ipv6'); // documentation
 blockedIpv6.addSubnet('64:ff9b:1::', 48, 'ipv6'); // local-use NAT64
+blockedIpv6.addSubnet('2001::', 32, 'ipv6'); // Teredo
+blockedIpv6.addSubnet('100::', 64, 'ipv6'); // discard-only
+blockedIpv6.addSubnet('2001:10::', 28, 'ipv6'); // ORCHID
+blockedIpv6.addSubnet('2001:20::', 28, 'ipv6'); // ORCHIDv2
+blockedIpv6.addSubnet('fec0::', 10, 'ipv6'); // deprecated site-local
 
 const alwaysBlockedIpv6 = new BlockList();
 alwaysBlockedIpv6.addSubnet('fe80::', 10, 'ipv6');

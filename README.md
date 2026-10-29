@@ -120,7 +120,7 @@ Every knob is an environment variable; see `Backend/.env.example` and `Frontend/
 | `FETCH_CONCURRENCY` | `5` | Parallel fetches per batch |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window |
 | `RATE_LIMIT_MAX` | `30` | Requests per window, per IP |
-| `ALLOW_PRIVATE_ADDRESSES` | `false` | **Local development only.** Permits loopback/RFC1918 targets. Link-local and multicast stay blocked regardless. |
+| `ALLOW_PRIVATE_ADDRESSES` | `false` | **Local development only. Ignored when `NODE_ENV=production`.** When honored, permits loopback, RFC1918, carrier-grade NAT, and any TCP port. Link-local, metadata, multicast, and reserved ranges stay blocked. |
 
 ### Frontend
 
@@ -325,7 +325,7 @@ This service fetches arbitrary user-supplied URLs, which is exactly the shape of
 - **Every redirect hop is re-validated.** An open redirect on a public site cannot walk the server into the private network, or off onto a `file:` URL. Each hop uses the same pinned lookup.
 - **Protocol and port allowlist.** Only `http:` and `https:`, and only ports 80 and 443, at every hop.
 - **Time and size limits.** A hung or enormous upstream cannot hold a worker or exhaust memory.
-- **Even the escape hatch is narrow.** `ALLOW_PRIVATE_ADDRESSES` opens loopback for local development, but never link-local or multicast.
+- **The escape hatch is dev-only and ignored in production.** `ALLOW_PRIVATE_ADDRESSES` permits loopback, RFC1918, carrier-grade NAT, and non-standard ports for local development. `NODE_ENV=production` ignores the variable even if it is set. Link-local (including cloud metadata), multicast, and other always-blocked ranges stay closed.
 
 And around the edges: Helmet security headers, an origin allowlist for CORS (loopback origins are dev-only), per-IP rate limiting, a 100 KB request body cap, remote text rendered as React text rather than HTML, `javascript:`/`data:` image URLs stripped server-side, and CSV export hardened against spreadsheet formula injection.
 
