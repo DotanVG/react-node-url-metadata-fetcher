@@ -61,11 +61,12 @@ export const RATE_LIMIT_WINDOW_MS = int(
 export const RATE_LIMIT_MAX = int(process.env.RATE_LIMIT_MAX, 30);
 
 // Local-dev hatch for the in-process fixture. It permits loopback, RFC1918,
-// carrier-grade NAT, and non-standard ports. Ignored when NODE_ENV is
-// production, even if the variable is set. Link-local, metadata, multicast,
-// and other always-blocked ranges stay closed either way.
+// carrier-grade NAT, and non-standard ports. Requires an explicit development
+// or test NODE_ENV; unset and unknown values fail closed. Link-local, metadata,
+// multicast, and other always-blocked ranges stay closed either way.
 export const ALLOW_PRIVATE_ADDRESSES =
-    !IS_PRODUCTION && bool(process.env.ALLOW_PRIVATE_ADDRESSES, false);
+    ['development', 'test'].includes(process.env.NODE_ENV) &&
+    bool(process.env.ALLOW_PRIVATE_ADDRESSES, false);
 
 export const USER_AGENT =
     process.env.USER_AGENT ||

@@ -1,21 +1,16 @@
 // config.js reads NODE_ENV when it is first imported. A child process is the
-// only way to observe the production posture without poisoning the suite.
+// only way to observe each environment without poisoning the suite.
 import { spawnSync } from 'node:child_process';
 
-const script = `
-process.env.NODE_ENV = 'production';
-process.env.ALLOW_PRIVATE_ADDRESSES = 'true';
-
-const { ALLOW_PRIVATE_ADDRESSES, IS_PRODUCTION } = await import('./src/config.js');
-const { assertPublicUrl, parseUrl } = await import('./src/urlSafety.js');
+const script = (enabled) => `
+import assert from 'node:assert/strict';
+const { ALLOW_PRIVATE_ADDRESSES } = await import('./src/config.js');
+const { assertPublicUrl, isBlockedAddress, parseUrl } = await import('./src/urlSafety.js');
 const { ERROR_CODES } = await import('./src/errors.js');
 
-if (!IS_PRODUCTION || ALLOW_PRIVATE_ADDRESSES !== false) {
-    console.error('hatch was honored in production', { IS_PRODUCTION, ALLOW_PRIVATE_ADDRESSES });
-    process.exit(2);
-}
+assert.equal(ALLOW_PRIVATE_ADDRESSES, ${enabled});
 
-const blocked = [
+const privateUrls = [
     'http://127.0.0.1/',
     'http://10.0.0.5/',
     'http://172.16.0.1/',
@@ -25,40 +20,60 @@ const blocked = [
     'http://[fc00::1]/',
 ];
 
-for (const input of blocked) {
-    try {
+for (const input of privateUrls) {
+    const url = parseUrl(input);
+    assert.equal(isBlockedAddress(url.hostname.replace(/^\\[|\\]$/g, '')), ${!enabled});
+    if (${enabled}) {
         await assertPublicUrl(parseUrl(input));
-        console.error('allowed private address', input);
-        process.exit(3);
-    } catch (error) {
-        if (error.code !== ERROR_CODES.BLOCKED_HOST) {
-            console.error('unexpected code for', input, error.code);
-            process.exit(4);
-        }
+    } else {
+        await assert.rejects(assertPublicUrl(url), { code: ERROR_CODES.BLOCKED_HOST });
     }
 }
 
-try {
+if (${enabled}) {
     await assertPublicUrl(parseUrl('http://1.1.1.1:8080/'));
-    console.error('allowed a non-web port');
-    process.exit(5);
-} catch (error) {
-    if (error.code !== ERROR_CODES.BLOCKED_PORT) {
-        console.error('unexpected port code', error.code);
-        process.exit(6);
-    }
+} else {
+    await assert.rejects(assertPublicUrl(parseUrl('http://1.1.1.1:8080/')), {
+        code: ERROR_CODES.BLOCKED_PORT,
+    });
+}
+
+for (const input of ['http://169.254.169.254/', 'http://[fe80::1]/', 'http://224.0.0.1/']) {
+    await assert.rejects(assertPublicUrl(parseUrl(input)), { code: ERROR_CODES.BLOCKED_HOST });
 }
 
 await assertPublicUrl(parseUrl('https://1.1.1.1/'));
 await assertPublicUrl(parseUrl('http://8.8.8.8/'));
 `;
 
-describe('ALLOW_PRIVATE_ADDRESSES in production', () => {
-    it('is ignored, so loopback, RFC1918, CGNAT and other ports stay blocked', () => {
+describe('ALLOW_PRIVATE_ADDRESSES environment gate', () => {
+    it.each([
+        [undefined, 'true', false],
+        ['', 'true', false],
+        ['production', 'true', false],
+        ['Production', 'true', false],
+        ['staging', 'true', false],
+        ['dev', 'true', false],
+        ['Development', 'true', false],
+        ['TEST', 'true', false],
+        ['development ', 'true', false],
+        ['development', 'true', true],
+        ['test', 'true', true],
+        ['development', 'false', false],
+        ['test', 'false', false],
+        ['development', undefined, false],
+        ['test', undefined, false],
+    ])('NODE_ENV=%p, ALLOW_PRIVATE_ADDRESSES=%p enables the hatch: %p', (nodeEnv, hatch, enabled) => {
+        const env = { ...process.env };
+        delete env.NODE_ENV;
+        delete env.ALLOW_PRIVATE_ADDRESSES;
+        if (nodeEnv !== undefined) env.NODE_ENV = nodeEnv;
+        if (hatch !== undefined) env.ALLOW_PRIVATE_ADDRESSES = hatch;
+
         const result = spawnSync(
             process.execPath,
-            ['--input-type=module', '--eval', script],
-            { cwd: process.cwd(), encoding: 'utf8' }
+            ['--input-type=module', '--eval', script(enabled)],
+            { cwd: process.cwd(), env, encoding: 'utf8', timeout: 10_000 }
         );
 
         if (result.status !== 0) {
