@@ -59,3 +59,15 @@ export function rateLimitKey(req) {
     // both dotted and hexadecimal IPv4-mapped IPv6 to the same IPv4 key.
     return ipKeyGenerator(ip, 56);
 }
+
+// Only requests whose client key actually comes from CF-Connecting-IP get the
+// second quota. Use the matched edge, not a shared Render/internal proxy socket.
+export function cloudflareEdgeKey(req) {
+    if (!isSingleIp(req.get('CF-Connecting-IP')) || !cloudflareChainStatus(req).cloudflareMatched) {
+        return undefined;
+    }
+    const edge = TRUST_PROXY_HOPS === 0
+        ? req.socket.remoteAddress
+        : req.get('X-Forwarded-For').split(',').at(-TRUST_PROXY_HOPS).trim();
+    return ipKeyGenerator(edge, 56);
+}

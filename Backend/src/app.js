@@ -9,13 +9,14 @@ import {
     ALLOWED_ORIGINS,
     IS_DEV_OR_TEST,
     MAX_URLS_PER_REQUEST,
+    RATE_LIMIT_EDGE_MAX,
     RATE_LIMIT_MAX,
     RATE_LIMIT_WINDOW_MS,
     TRUST_PROXY_HOPS,
 } from './config.js';
 import { ERROR_CODES } from './errors.js';
 import { fetchMetadataForUrls } from './metadataService.js';
-import { rateLimitKey } from './rateLimitKey.js';
+import { cloudflareEdgeKey, rateLimitKey } from './rateLimitKey.js';
 
 const STARTED_AT = Date.now();
 
@@ -94,12 +95,8 @@ export function createApp() {
         });
     });
 
-    const limiter = rateLimit({
+    const limiterOptions = {
         windowMs: RATE_LIMIT_WINDOW_MS,
-        limit: RATE_LIMIT_MAX,
-        // Verified Cloudflare boundary + valid CF header, else Express req.ip.
-        // The key generator applies IPv6 /56 grouping on both paths.
-        keyGenerator: rateLimitKey,
         standardHeaders: 'draft-7',
         legacyHeaders: false,
         handler: (req, res) => {
@@ -112,10 +109,26 @@ export function createApp() {
                 },
             });
         },
+    };
+    const edgeLimiter = rateLimit({
+        ...limiterOptions,
+        limit: RATE_LIMIT_EDGE_MAX,
+        skip: (req) => cloudflareEdgeKey(req) === undefined,
+        keyGenerator: cloudflareEdgeKey,
+        requestPropertyName: 'edgeRateLimit',
+    });
+    const limiter = rateLimit({
+        ...limiterOptions,
+        limit: RATE_LIMIT_MAX,
+        // Verified Cloudflare boundary + valid CF header, else Express req.ip.
+        // Both key generators apply IPv6 /56 grouping.
+        keyGenerator: rateLimitKey,
     });
 
     // Express 5 forwards rejected async handlers to errorHandler.
-    app.post('/fetch-metadata', limiter, validateUrls, async (req, res) => {
+    // Edge first: count rotating clients before their individual quotas, while
+    // keeping the usual per-client response headers when the request is allowed.
+    app.post('/fetch-metadata', edgeLimiter, limiter, validateUrls, async (req, res) => {
         const results = await fetchMetadataForUrls(req.validUrls);
         res.json({
             results,
