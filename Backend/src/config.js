@@ -13,7 +13,10 @@ const bool = (value, fallback) => {
 const proxyHops = (value) => {
     if (value === undefined) return 1;
     if (!['0', '1', '2', '3', '4', '5'].includes(value)) {
-        throw new Error('TRUST_PROXY_HOPS must be an integer from 0 to 5 (unset defaults to 1).');
+        // Invalid startup configuration is fatal. Keep stderr to one fixed line,
+        // without echoing environment input or exposing an uncaught-error stack.
+        console.error('TRUST_PROXY_HOPS must be an integer from 0 to 5 (unset defaults to 1).');
+        process.exit(1);
     }
     return Number(value);
 };
