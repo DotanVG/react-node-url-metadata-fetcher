@@ -9,12 +9,14 @@ import {
     ALLOWED_ORIGINS,
     IS_DEV_OR_TEST,
     MAX_URLS_PER_REQUEST,
+    RATE_LIMIT_EDGE_MAX,
     RATE_LIMIT_MAX,
     RATE_LIMIT_WINDOW_MS,
     TRUST_PROXY_HOPS,
 } from './config.js';
 import { ERROR_CODES } from './errors.js';
 import { fetchMetadataForUrls } from './metadataService.js';
+import { cloudflareEdgeKey, rateLimitKey } from './rateLimitKey.js';
 
 const STARTED_AT = Date.now();
 
@@ -93,15 +95,13 @@ export function createApp() {
         });
     });
 
-    const limiter = rateLimit({
+    const limiterOptions = {
         windowMs: RATE_LIMIT_WINDOW_MS,
-        limit: RATE_LIMIT_MAX,
-        // Group IPv6 clients by /56 so address rotation cannot evade the limit.
-        ipv6Subnet: 56,
         standardHeaders: 'draft-7',
         legacyHeaders: false,
         handler: (req, res) => {
             const retryAfter = Math.ceil(RATE_LIMIT_WINDOW_MS / 1000);
+            res.set('Retry-After', String(retryAfter));
             res.status(429).json({
                 error: {
                     code: 'RATE_LIMITED',
@@ -110,10 +110,27 @@ export function createApp() {
                 },
             });
         },
+    };
+    const edgeLimiter = rateLimit({
+        ...limiterOptions,
+        // Keep the per-client quota in standard headers, even on an edge 429.
+        standardHeaders: false,
+        limit: RATE_LIMIT_EDGE_MAX,
+        skip: (req) => cloudflareEdgeKey(req) === undefined,
+        keyGenerator: cloudflareEdgeKey,
+        requestPropertyName: 'edgeRateLimit',
+    });
+    const limiter = rateLimit({
+        ...limiterOptions,
+        limit: RATE_LIMIT_MAX,
+        // Verified Cloudflare boundary + valid CF header, else Express req.ip.
+        // Both key generators apply IPv6 /56 grouping.
+        keyGenerator: rateLimitKey,
     });
 
     // Express 5 forwards rejected async handlers to errorHandler.
-    app.post('/fetch-metadata', limiter, validateUrls, async (req, res) => {
+    // Client first: rejected requests must not consume other clients' edge quota.
+    app.post('/fetch-metadata', limiter, edgeLimiter, validateUrls, async (req, res) => {
         const results = await fetchMetadataForUrls(req.validUrls);
         res.json({
             results,
