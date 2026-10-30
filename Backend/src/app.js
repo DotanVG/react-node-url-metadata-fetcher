@@ -101,6 +101,7 @@ export function createApp() {
         legacyHeaders: false,
         handler: (req, res) => {
             const retryAfter = Math.ceil(RATE_LIMIT_WINDOW_MS / 1000);
+            res.set('Retry-After', String(retryAfter));
             res.status(429).json({
                 error: {
                     code: 'RATE_LIMITED',
@@ -112,6 +113,8 @@ export function createApp() {
     };
     const edgeLimiter = rateLimit({
         ...limiterOptions,
+        // Keep the per-client quota in standard headers, even on an edge 429.
+        standardHeaders: false,
         limit: RATE_LIMIT_EDGE_MAX,
         skip: (req) => cloudflareEdgeKey(req) === undefined,
         keyGenerator: cloudflareEdgeKey,
@@ -126,9 +129,8 @@ export function createApp() {
     });
 
     // Express 5 forwards rejected async handlers to errorHandler.
-    // Edge first: count rotating clients before their individual quotas, while
-    // keeping the usual per-client response headers when the request is allowed.
-    app.post('/fetch-metadata', edgeLimiter, limiter, validateUrls, async (req, res) => {
+    // Client first: rejected requests must not consume other clients' edge quota.
+    app.post('/fetch-metadata', limiter, edgeLimiter, validateUrls, async (req, res) => {
         const results = await fetchMetadataForUrls(req.validUrls);
         res.json({
             results,

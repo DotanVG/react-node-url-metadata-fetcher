@@ -73,7 +73,7 @@ export const RATE_LIMIT_WINDOW_MS = int(
 );
 export const RATE_LIMIT_MAX = int(process.env.RATE_LIMIT_MAX, 30);
 // Shared by clients using one matched Cloudflare edge; keep it coarser by default.
-export const RATE_LIMIT_EDGE_MAX = int(process.env.RATE_LIMIT_EDGE_MAX, RATE_LIMIT_MAX * 10);
+export const RATE_LIMIT_EDGE_MAX = int(process.env.RATE_LIMIT_EDGE_MAX, 100);
 
 // Local-dev hatch for the in-process fixture. It permits loopback, RFC1918,
 // carrier-grade NAT, and non-standard ports. Requires an explicit development

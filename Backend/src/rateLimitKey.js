@@ -60,10 +60,10 @@ export function rateLimitKey(req) {
     return ipKeyGenerator(ip, 56);
 }
 
-// Only requests whose client key actually comes from CF-Connecting-IP get the
-// second quota. Use the matched edge, not a shared Render/internal proxy socket.
+// Count every request reaching a matched CF edge, including invalid CF headers.
+// Use the matched edge, not a shared Render/internal proxy socket.
 export function cloudflareEdgeKey(req) {
-    if (!isSingleIp(req.get('CF-Connecting-IP')) || !cloudflareChainStatus(req).cloudflareMatched) {
+    if (!cloudflareChainStatus(req).cloudflareMatched) {
         return undefined;
     }
     const edge = TRUST_PROXY_HOPS === 0

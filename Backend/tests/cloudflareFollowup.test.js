@@ -55,14 +55,15 @@ describe('Cloudflare QA follow-ups', () => {
         expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
         expect(limited.body.error).toMatchObject({ code: 'RATE_LIMITED', retryAfterSeconds: 60 });
         expect(limited.headers['retry-after']).toBeDefined();
-        expect(limited.headers.ratelimit).toMatch(/limit=5/);
+        expect(limited.headers.ratelimit).toMatch(/limit=2/);
 
         // A different matched edge has its own coarse quota, even behind one socket.
         const other = withPeer(app, hops === 0 ? '173.245.48.1' : peer);
         await post(other, chain('173.245.48.1'), '198.51.100.7').expect(200);
         for (const path of ['/health', '/healthz']) await request(harness).get(path).expect(200);
 
-        // Non-CF and invalid-header traffic must bypass the coarse limiter entirely.
+        // Non-CF traffic bypasses the coarse limiter. Invalid CF headers still
+        // use req.ip for the client quota and count toward a matched edge quota.
         for (let i = 1; i <= 6; i += 1) {
             const direct = withPeer(app, hops === 0 ? `203.0.113.${i}` : peer);
             await post(direct, chain(`203.0.113.${i}`), `192.0.2.${i}`).expect(200);
@@ -71,12 +72,6 @@ describe('Cloudflare QA follow-ups', () => {
         await post(invalid, chain(edge), 'garbage-a').expect(200);
         await post(invalid, chain(edge), 'garbage-b').expect(200);
         await post(invalid, chain(edge), 'garbage-c').expect(429);
-    });
-
-    it.each([30, 60])('defaults the coarse quota to ten times the client quota %i', async (limit) => {
-        process.env.RATE_LIMIT_MAX = String(limit);
-        const { RATE_LIMIT_EDGE_MAX } = await import('../src/config.js');
-        expect(RATE_LIMIT_EDGE_MAX).toBe(limit * 10);
     });
 
     it('pins every embedded Cloudflare IPv4 and IPv6 CIDR exactly', async () => {
