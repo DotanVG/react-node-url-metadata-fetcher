@@ -1,0 +1,20 @@
+# URL Metadata Fetcher
+
+> URL Metadata Fetcher is a free web tool by Dotan Veretzky that inspects, audits, and exports the Open Graph, Twitter Card, JSON-LD, and HTML metadata a public page publishes about itself.
+
+## About
+
+- [Dotan Veretzky](https://dotanv.vercel.app/): software engineer, game developer, web and AI developer. Author of URL Metadata Fetcher.
+- [LinkedIn](https://www.linkedin.com/in/dotan-v/)
+- [GitHub](https://github.com/DotanVG)
+- [Personal site](https://dotanv.vercel.app/)
+
+## App
+
+- [Live app](https://react-node-url-mdata-fetch-dotanv.netlify.app/): paste one URL or a batch of up to 20, then export JSON or CSV.
+- [API](https://react-node-url-metadata-fetcher.onrender.com/): public metadata extraction API used by the app.
+
+## Source
+
+- [GitHub repository](https://github.com/DotanVG/react-node-url-metadata-fetcher)
+- [README](https://github.com/DotanVG/react-node-url-metadata-fetcher/blob/main/README.md): architecture, API reference, and local setup.
