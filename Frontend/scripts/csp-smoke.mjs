@@ -456,22 +456,13 @@ document.addEventListener('securitypolicyviolation', (event) => {
             throw new Error(`CSP violations:\n${JSON.stringify(violations, null, 2)}`);
         }
 
-        const enforcing = await evaluate(
-            cdp,
-            `(() => {
-                const header = document.querySelector('meta[http-equiv]')?.content || '';
-                return {
-                    csp: header,
-                    font: document.fonts.check('16px Inter'),
-                };
-            })()`
-        );
+        const fontLoaded = await evaluate(cdp, `document.fonts.check('16px Inter')`);
         console.log(
             JSON.stringify(
                 {
                     ok: true,
                     enforcingHeader: csp.startsWith("default-src 'self'"),
-                    fontLoaded: enforcing.font,
+                    fontLoaded,
                     images: images.map((img) => img.src),
                     violations: 0,
                 },

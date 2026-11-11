@@ -324,8 +324,16 @@ describe('POST /fetch-metadata per-URL errors', () => {
                 resolve();
             };
         });
-        const hangClosed = new Promise((resolve) => {
-            fixture.activity.onHangClose = resolve;
+        const hangClosed = new Promise((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error('The hung upstream request was not aborted')),
+                1000
+            );
+            timer.unref?.();
+            fixture.activity.onHangClose = () => {
+                clearTimeout(timer);
+                resolve();
+            };
         });
 
         try {
