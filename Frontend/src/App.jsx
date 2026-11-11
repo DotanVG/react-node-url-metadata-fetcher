@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { ToastContainer, toast } from 'react-toastify';
 import { FiLink } from 'react-icons/fi';
@@ -56,6 +56,17 @@ function App() {
     const [copied, setCopied] = useState(false);
 
     const copyResetRef = useRef(null);
+    // Identifies the batch the screen is allowed to show. Clearing or a newer
+    // submit bumps it so a late response from an older batch cannot land.
+    const requestSeq = useRef(0);
+    const fetchAbortRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            requestSeq.current += 1;
+            fetchAbortRef.current?.abort();
+        };
+    }, []);
 
     /** Adds one or many URLs. Returns the list as it now stands. */
     const addUrls = useCallback(
@@ -106,9 +117,13 @@ function App() {
     );
 
     const clearAll = useCallback(() => {
+        requestSeq.current += 1;
+        fetchAbortRef.current?.abort();
+        fetchAbortRef.current = null;
         setUrls([]);
         setResults([]);
         setSummary(null);
+        setIsLoading(false);
     }, [setUrls]);
 
     const loadSamples = useCallback(() => {
@@ -118,12 +133,19 @@ function App() {
 
     const runFetch = useCallback(
         async (targetUrls) => {
+            const requestId = ++requestSeq.current;
+            fetchAbortRef.current?.abort();
+            const controller = new AbortController();
+            fetchAbortRef.current = controller;
+
             setIsLoading(true);
             setResults([]);
             setSummary(null);
 
             try {
-                const payload = await fetchMetadata(targetUrls);
+                const payload = await fetchMetadata(targetUrls, { signal: controller.signal });
+                if (requestId !== requestSeq.current) return;
+
                 backend.reportReachable();
 
                 setResults(payload.results.map(sanitizeResult));
@@ -138,12 +160,15 @@ function App() {
                     toast.warning(`${succeeded} fetched, ${failed} failed. See the details below.`);
                 }
             } catch (error) {
+                if (requestId !== requestSeq.current) return;
                 if (error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT') {
                     backend.reportUnreachable();
                 }
                 toast.error(error.message);
             } finally {
-                setIsLoading(false);
+                if (requestId === requestSeq.current) {
+                    setIsLoading(false);
+                }
             }
         },
         [backend]

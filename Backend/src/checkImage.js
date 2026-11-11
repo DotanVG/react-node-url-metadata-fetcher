@@ -1,5 +1,5 @@
 import { IMAGE_TIMEOUT_MS, USER_AGENT } from './config.js';
-import { discardBody, fetchPublic } from './fetchPage.js';
+import { combineSignal, discardBody, fetchPublic } from './fetchPage.js';
 
 // Past this, previews load slowly and some platforms drop the image.
 export const HEAVY_IMAGE_BYTES = 1024 * 1024;
@@ -11,14 +11,14 @@ const SNIFF_BYTES = 256 * 1024;
  * Fetches the preview image the way a social crawler would and reports what it
  * actually got. Never throws: a broken image is a finding, not a failure.
  */
-export async function checkImage(imageUrl) {
+export async function checkImage(imageUrl, { signal } = {}) {
     if (!imageUrl) return null;
 
     let response;
     try {
         ({ response } = await fetchPublic(imageUrl, {
             headers: { 'User-Agent': USER_AGENT, Accept: 'image/*,*/*;q=0.8' },
-            signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
+            signal: combineSignal(signal, IMAGE_TIMEOUT_MS),
         }));
     } catch (error) {
         return { url: imageUrl, ok: false, error: error.message };

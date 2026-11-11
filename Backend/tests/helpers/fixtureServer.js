@@ -5,6 +5,7 @@ import http from 'node:http';
  * (or on a third party keeping their markup stable).
  */
 export function startFixtureServer() {
+    const activity = { hangStarts: 0, hangCloses: 0 };
     const server = http.createServer((req, res) => {
         const url = new URL(req.url, 'http://localhost');
         const route = routes[url.pathname];
@@ -15,7 +16,7 @@ export function startFixtureServer() {
             return;
         }
 
-        route(req, res, url);
+        route(req, res, url, activity);
     });
 
     return new Promise((resolve) => {
@@ -25,6 +26,7 @@ export function startFixtureServer() {
                 server,
                 origin: `http://127.0.0.1:${port}`,
                 url: (path) => `http://127.0.0.1:${port}${path}`,
+                activity,
                 close: () =>
                     new Promise((done) => {
                         server.closeAllConnections?.();
@@ -139,6 +141,21 @@ const routes = {
 
     '/slow': (req, res) => {
         setTimeout(() => html(res, '<html><title>Slow</title></html>'), 4000).unref();
+    },
+
+    // Accepts the connection and never writes a response.
+    '/hang': (req, res, url, activity) => {
+        activity.hangStarts += 1;
+        req.on('close', () => {
+            activity.hangCloses += 1;
+        });
+    },
+
+    // Sends headers, then resets the socket before the body finishes.
+    '/reset': (req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.write('<html><head><title>Cut off');
+        req.socket.destroy();
     },
 
     '/latin1': (req, res) => {

@@ -110,8 +110,19 @@ export function createApp() {
     });
 
     app.post('/fetch-metadata', limiter, validateUrls, async (req, res, next) => {
+        const controller = new AbortController();
+        // `close` also fires after a normal response, so only abort when the
+        // client left before we finished writing.
+        const onClose = () => {
+            if (!res.writableEnded) controller.abort();
+        };
+        res.on('close', onClose);
+
         try {
-            const results = await fetchMetadataForUrls(req.validUrls);
+            const results = await fetchMetadataForUrls(req.validUrls, {
+                signal: controller.signal,
+            });
+            if (controller.signal.aborted || res.writableEnded || res.destroyed) return;
             res.json({
                 results,
                 summary: {
@@ -121,7 +132,10 @@ export function createApp() {
                 },
             });
         } catch (error) {
+            if (controller.signal.aborted || res.writableEnded || res.destroyed) return;
             next(error);
+        } finally {
+            res.off('close', onClose);
         }
     });
 

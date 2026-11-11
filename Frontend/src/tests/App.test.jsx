@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import App from '../App.jsx';
@@ -273,6 +273,103 @@ describe('App', () => {
         render(<App />);
 
         expect(await screen.findByText(/Waking up the API/i)).toBeInTheDocument();
+    });
+
+    it('drops a batch that was cleared while the request was still in flight', async () => {
+        const user = userEvent.setup();
+        let resolvePost;
+        const fetchMock = mockApi(
+            () =>
+                new Promise((resolve) => {
+                    resolvePost = resolve;
+                })
+        );
+
+        await renderApp();
+        await user.type(screen.getByLabelText(/web address/i), 'late.dev{Enter}');
+        await user.click(screen.getByRole('button', { name: /fetch metadata/i }));
+        expect(await screen.findByText(/fetching metadata/i)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /clear all/i }));
+
+        const post = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST');
+        expect(post[1].signal?.aborted).toBe(true);
+        expect(screen.queryByText(/fetching metadata/i)).not.toBeInTheDocument();
+
+        await act(async () => {
+            resolvePost(
+                metadataResponse([
+                    { url: 'https://late.dev/', ok: true, title: 'Late Title' },
+                ])
+            );
+        });
+
+        expect(screen.queryByText('Late Title')).not.toBeInTheDocument();
+        expect(screen.queryByText(/of \d+ fetched/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/took too long/i)).not.toBeInTheDocument();
+    });
+
+    it('does not show an error toast when a cleared batch is aborted', async () => {
+        const user = userEvent.setup();
+        mockApi(
+            (_url, options) =>
+                new Promise((_resolve, reject) => {
+                    options.signal?.addEventListener('abort', () => {
+                        const error = new Error('The operation was aborted.');
+                        error.name = 'AbortError';
+                        reject(error);
+                    });
+                })
+        );
+
+        await renderApp();
+        await user.type(screen.getByLabelText(/web address/i), 'late.dev{Enter}');
+        await user.click(screen.getByRole('button', { name: /fetch metadata/i }));
+        await user.click(screen.getByRole('button', { name: /clear all/i }));
+
+        expect(screen.queryByText(/took too long/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/fetching metadata/i)).not.toBeInTheDocument();
+    });
+
+    it('does not let an older response overwrite a newer submit', async () => {
+        const user = userEvent.setup();
+        const pending = [];
+        const fetchMock = mockApi(
+            () =>
+                new Promise((resolve) => {
+                    pending.push(resolve);
+                })
+        );
+
+        await renderApp();
+        await user.type(screen.getByLabelText(/web address/i), 'race.dev{Enter}');
+
+        const form = screen.getByRole('button', { name: /fetch metadata/i }).closest('form');
+        await act(async () => {
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        const posts = fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST');
+        expect(posts).toHaveLength(2);
+        expect(posts[0][1].signal?.aborted).toBe(true);
+        expect(posts[1][1].signal?.aborted).toBe(false);
+
+        await act(async () => {
+            pending[1](
+                metadataResponse([{ url: 'https://race.dev/', ok: true, title: 'Newer result' }])
+            );
+        });
+        expect(await screen.findByText('Newer result')).toBeInTheDocument();
+
+        await act(async () => {
+            pending[0](
+                metadataResponse([{ url: 'https://race.dev/', ok: true, title: 'Older result' }])
+            );
+        });
+
+        expect(screen.getByText('Newer result')).toBeInTheDocument();
+        expect(screen.queryByText('Older result')).not.toBeInTheDocument();
     });
 
     it('toggles between light and dark themes', async () => {
