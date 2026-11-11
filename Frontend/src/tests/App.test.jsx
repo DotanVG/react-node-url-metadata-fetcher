@@ -309,6 +309,45 @@ describe('App', () => {
         expect(screen.queryByText(/took too long/i)).not.toBeInTheDocument();
     });
 
+    it('does not update state or warn when unmounted during an in-flight fetch', async () => {
+        const user = userEvent.setup();
+        const warnings = [];
+        const consoleError = vi.spyOn(console, 'error').mockImplementation((...args) => {
+            warnings.push(args.map((part) => String(part)).join(' '));
+        });
+
+        const fetchMock = mockApi(
+            (_url, options) =>
+                new Promise((_resolve, reject) => {
+                    options?.signal?.addEventListener('abort', () => {
+                        const error = new Error('The operation was aborted.');
+                        error.name = 'AbortError';
+                        reject(error);
+                    });
+                })
+        );
+
+        const { unmount } = await renderApp();
+        await user.type(screen.getByLabelText(/web address/i), 'late.dev{Enter}');
+        await user.click(screen.getByRole('button', { name: /fetch metadata/i }));
+        expect(await screen.findByText(/fetching metadata/i)).toBeInTheDocument();
+
+        const post = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST');
+        warnings.length = 0;
+        unmount();
+
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(post[1].signal?.aborted).toBe(true);
+        const stateUpdates = warnings.filter((message) =>
+            /state update|unmounted|not wrapped in act/i.test(message)
+        );
+        expect(stateUpdates).toEqual([]);
+        consoleError.mockRestore();
+    });
+
     it('does not show an error toast when a cleared batch is aborted', async () => {
         const user = userEvent.setup();
         mockApi(

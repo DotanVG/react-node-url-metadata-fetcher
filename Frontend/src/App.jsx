@@ -15,7 +15,7 @@ import UrlInput from './components/UrlInput.jsx';
 import { useBackendStatus } from './hooks/useBackendStatus.js';
 import { usePersistentUrls } from './hooks/usePersistentUrls.js';
 import { useTheme } from './hooks/useTheme.js';
-import { fetchMetadata } from './lib/api.js';
+import { fetchMetadata, isRequestCancelled } from './lib/api.js';
 import { downloadFile, timestampedName, toCsv, toJson } from './lib/exports.js';
 import { parseUrlList } from './lib/urls.js';
 
@@ -160,7 +160,7 @@ function App() {
                     toast.warning(`${succeeded} fetched, ${failed} failed. See the details below.`);
                 }
             } catch (error) {
-                if (requestId !== requestSeq.current) return;
+                if (requestId !== requestSeq.current || isRequestCancelled(error)) return;
                 if (error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT') {
                     backend.reportUnreachable();
                 }

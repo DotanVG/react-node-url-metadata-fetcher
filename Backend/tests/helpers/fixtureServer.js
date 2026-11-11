@@ -146,8 +146,10 @@ const routes = {
     // Accepts the connection and never writes a response.
     '/hang': (req, res, url, activity) => {
         activity.hangStarts += 1;
+        activity.onHangStart?.();
         req.on('close', () => {
             activity.hangCloses += 1;
+            activity.onHangClose?.();
         });
     },
 

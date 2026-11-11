@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, fetchMetadata, pingHealth } from '../lib/api.js';
+import {
+    ApiError,
+    fetchMetadata,
+    isRequestCancelled,
+    pingHealth,
+} from '../lib/api.js';
 
 const jsonResponse = (body, { ok = true, status = 200 } = {}) => ({
     ok,
@@ -10,7 +15,10 @@ const jsonResponse = (body, { ok = true, status = 200 } = {}) => ({
 
 describe('api client', () => {
     beforeEach(() => vi.stubGlobal('fetch', vi.fn()));
-    afterEach(() => vi.unstubAllGlobals());
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    });
 
     describe('pingHealth', () => {
         it('resolves when the API answers', async () => {
@@ -75,15 +83,60 @@ describe('api client', () => {
             expect(error.message).toMatch(/waking up/i);
         });
 
-        it('reports an abort as a timeout with advice to retry', async () => {
+        it('treats an abort the caller did not request as a timeout', async () => {
             const abort = new Error('aborted');
             abort.name = 'AbortError';
             fetch.mockRejectedValue(abort);
 
             const error = await fetchMetadata(['https://a.dev']).catch((e) => e);
 
+            expect(error).toBeInstanceOf(ApiError);
             expect(error.code).toBe('TIMEOUT');
             expect(error.message).toMatch(/starting up/i);
+        });
+
+        it('maps our own budget expiring to TIMEOUT', async () => {
+            vi.useFakeTimers();
+            fetch.mockImplementation(
+                (_url, options) =>
+                    new Promise((_resolve, reject) => {
+                        options.signal.addEventListener('abort', () => {
+                            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+                        });
+                    })
+            );
+
+            const pending = fetchMetadata(['https://a.dev'], { timeoutMs: 1000 }).catch(
+                (error) => error
+            );
+            await vi.advanceTimersByTimeAsync(1000);
+            const error = await pending;
+
+            expect(error).toBeInstanceOf(ApiError);
+            expect(error.code).toBe('TIMEOUT');
+            vi.useRealTimers();
+        });
+
+        it('stays silent when the caller cancels', async () => {
+            fetch.mockImplementation(
+                (_url, options) =>
+                    new Promise((_resolve, reject) => {
+                        options.signal.addEventListener('abort', () => {
+                            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+                        });
+                    })
+            );
+            const controller = new AbortController();
+            const pending = fetchMetadata(['https://a.dev'], {
+                signal: controller.signal,
+            }).catch((error) => error);
+
+            controller.abort();
+            const error = await pending;
+
+            expect(isRequestCancelled(error)).toBe(true);
+            expect(error).not.toBeInstanceOf(ApiError);
+            expect(error.code).not.toBe('TIMEOUT');
         });
 
         it('rejects a response that is missing the results array', async () => {
