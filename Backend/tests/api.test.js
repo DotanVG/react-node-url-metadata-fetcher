@@ -9,6 +9,7 @@ process.env.MAX_URLS_PER_REQUEST = '5';
 process.env.RATE_LIMIT_MAX = '1000';
 
 import dns from 'node:dns/promises';
+import http from 'node:http';
 import { jest } from '@jest/globals';
 import request from 'supertest';
 
@@ -287,6 +288,79 @@ describe('POST /fetch-metadata per-URL errors', () => {
         const result = await expectError(fixture.url('/slow'), ERROR_CODES.TIMEOUT);
         expect(result.error.message).toMatch(/too long/);
     }, 10_000);
+
+    it('times out a URL that never responds and still returns the rest of the batch', async () => {
+        const response = await post([fixture.url('/bare'), fixture.url('/hang')]);
+        const [ready, hung] = response.body.results;
+
+        expect(response.status).toBe(200);
+        expect(ready).toMatchObject({ ok: true, title: 'Bare Page' });
+        expect(hung.ok).toBe(false);
+        expect(hung.error.code).toBe(ERROR_CODES.TIMEOUT);
+        expect(hung.error.message).toMatch(/too long/);
+    }, 10_000);
+
+    it('reports a socket that closes before the page finishes loading', async () => {
+        const result = await expectError(fixture.url('/reset'), ERROR_CODES.NETWORK_ERROR);
+        expect(result.error.message).toMatch(/closed before the page finished loading/);
+    });
+
+    it('aborts outbound fetches when the client disconnects', async () => {
+        const startsBefore = fixture.activity.hangStarts;
+        const closesBefore = fixture.activity.hangCloses;
+        const server = await new Promise((resolve) => {
+            const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+        });
+
+        try {
+            await new Promise((resolve, reject) => {
+                const req = http.request(
+                    {
+                        host: '127.0.0.1',
+                        port: server.address().port,
+                        method: 'POST',
+                        path: '/fetch-metadata',
+                        headers: { 'Content-Type': 'application/json' },
+                    },
+                    (res) => {
+                        res.resume();
+                    }
+                );
+                req.on('error', (error) => {
+                    if (error.code === 'ECONNRESET') resolve();
+                    else reject(error);
+                });
+                req.end(
+                    JSON.stringify({
+                        urls: [fixture.url('/bare'), fixture.url('/hang')],
+                    })
+                );
+
+                const started = Date.now();
+                const watch = setInterval(() => {
+                    if (fixture.activity.hangStarts > startsBefore) {
+                        clearInterval(watch);
+                        req.destroy();
+                    } else if (Date.now() - started > 1000) {
+                        clearInterval(watch);
+                        req.destroy();
+                        reject(new Error('The hung upstream request never started'));
+                    }
+                }, 10);
+            });
+
+            const deadline = Date.now() + 700;
+            while (fixture.activity.hangCloses === closesBefore && Date.now() < deadline) {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            }
+            expect(fixture.activity.hangCloses).toBeGreaterThan(closesBefore);
+        } finally {
+            await new Promise((done) => {
+                server.closeAllConnections?.();
+                server.close(done);
+            });
+        }
+    });
 
     it('reports an unresolvable domain as a DNS error', async () => {
         const lookup = jest.spyOn(dns, 'lookup').mockRejectedValue(

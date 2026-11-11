@@ -23,15 +23,25 @@ const REQUEST_HEADERS = {
 };
 
 /**
+ * The per-URL budget always applies. An optional caller signal (the client
+ * going away) aborts the same fetch without waiting out the budget.
+ */
+export function combineSignal(signal, timeoutMs) {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    if (!signal) return timeout;
+    return AbortSignal.any([signal, timeout]);
+}
+
+/**
  * Fetches a page's HTML while keeping the server safe:
  * every redirect hop is re-validated against the SSRF guard, the whole request
  * is time-boxed, and the body is truncated at MAX_HTML_BYTES.
  */
-export async function fetchPage(rawUrl) {
+export async function fetchPage(rawUrl, { signal } = {}) {
     const startedAt = Date.now();
     const { response, url } = await fetchPublic(rawUrl, {
         headers: REQUEST_HEADERS,
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        signal: combineSignal(signal, FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {

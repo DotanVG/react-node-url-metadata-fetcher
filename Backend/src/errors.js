@@ -61,6 +61,7 @@ export function toMetadataError(error, url) {
             );
         case 'ECONNRESET':
         case 'EPIPE':
+        case 'UND_ERR_SOCKET':
             return new MetadataError(
                 ERROR_CODES.NETWORK_ERROR,
                 'The connection was closed before the page finished loading.'

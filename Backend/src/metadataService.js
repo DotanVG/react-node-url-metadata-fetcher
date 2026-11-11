@@ -9,13 +9,13 @@ import { fetchPage } from './fetchPage.js';
  * Fetches metadata for one URL. Never throws: a failure is returned as a
  * result object so one bad link cannot sink the whole batch.
  */
-export async function fetchMetadataForUrl(rawUrl) {
+export async function fetchMetadataForUrl(rawUrl, { signal } = {}) {
     const startedAt = Date.now();
 
     try {
-        const page = await fetchPage(rawUrl);
+        const page = await fetchPage(rawUrl, { signal });
         const { signals, ...metadata } = extractMetadata(page.html, page.finalUrl);
-        const image = await checkImage(metadata.image);
+        const image = await checkImage(metadata.image, { signal });
 
         return {
             url: rawUrl,
@@ -45,16 +45,20 @@ export async function fetchMetadataForUrl(rawUrl) {
  * Unbounded Promise.all over a long list is a good way to get a free-tier
  * instance killed for memory.
  */
-export async function fetchMetadataForUrls(urls, concurrency = FETCH_CONCURRENCY) {
+export async function fetchMetadataForUrls(
+    urls,
+    { concurrency = FETCH_CONCURRENCY, signal } = {}
+) {
     const results = new Array(urls.length);
     let cursor = 0;
 
     const worker = async () => {
         for (;;) {
+            if (signal?.aborted) return;
             const index = cursor;
             cursor += 1;
             if (index >= urls.length) return;
-            results[index] = await fetchMetadataForUrl(urls[index]);
+            results[index] = await fetchMetadataForUrl(urls[index], { signal });
         }
     };
 
