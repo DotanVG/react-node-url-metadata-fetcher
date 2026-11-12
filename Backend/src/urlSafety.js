@@ -64,14 +64,12 @@ const ALWAYS_BLOCKED_IPV4 = [
     ['240.0.0.0', 4], // reserved + broadcast
 ];
 
-/** True when an IP literal points somewhere a public web page never should. */
 export function isPrivateAddress(ip) {
     if (net.isIPv4(ip)) return isBlockedIpv4(ip);
     if (net.isIPv6(ip)) return isBlockedIpv6(ip);
     return true; // not a recognisable IP: refuse rather than guess
 }
 
-/** Subset of isPrivateAddress that no configuration flag can unblock. */
 export function isAlwaysBlockedAddress(ip) {
     const target = net.isIPv6(ip)
         ? ip.toLowerCase().split('%')[0].match(/(\d+\.\d+\.\d+\.\d+)$/)?.[1] ?? ip
@@ -96,10 +94,6 @@ export function isAlwaysBlockedAddress(ip) {
     return true;
 }
 
-/**
- * Parses and normalises a user-supplied URL.
- * Throws a MetadataError with a friendly message when the input is unusable.
- */
 export function parseUrl(input) {
     if (typeof input !== 'string' || !input.trim()) {
         throw new MetadataError(

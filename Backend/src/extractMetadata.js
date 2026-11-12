@@ -1,22 +1,8 @@
 import * as cheerio from 'cheerio';
 
-const MAX_TEXT_LENGTH = 1000;
+import { SOURCES } from './metadataModel.js';
 
-/**
- * Where a value came from. Reported alongside the value because the source is
- * itself useful: a title that came from `<title>` rather than `og:title` still
- * renders, but it is not what the page told social platforms to show.
- *
- * `derived` means we worked the value out ourselves. The page never published
- * it, so it must never be presented as something the author provided.
- */
-export const SOURCES = {
-    OG: 'og',
-    TWITTER: 'twitter',
-    JSON_LD: 'jsonld',
-    HTML: 'html',
-    DERIVED: 'derived',
-};
+const MAX_TEXT_LENGTH = 1000;
 
 /**
  * Pulls the useful bits out of a page's HTML.
@@ -118,8 +104,6 @@ export function extractMetadata(html, baseUrl) {
     const sources = {};
     for (const [key, field] of Object.entries(fields)) {
         metadata[key] = field.value;
-        // A value that resolved away to nothing (a javascript: image, say)
-        // has no source to report.
         sources[key] = isEmpty(field.value) ? null : field.source;
     }
 
@@ -131,7 +115,6 @@ export function extractMetadata(html, baseUrl) {
 
     const signals = {
         robots,
-        // The value as written, so the audit can flag a relative og:image.
         imageDeclared: image.value,
         jsonLd: { types: jsonLdTypes, errors: jsonLdErrors },
     };
@@ -139,7 +122,6 @@ export function extractMetadata(html, baseUrl) {
     return { ...metadata, sources, signals };
 }
 
-/** First non-empty candidate wins, carrying its source along. */
 function pick(...candidates) {
     for (const [value, source] of candidates) {
         if (value) return { value, source };
@@ -151,7 +133,6 @@ const withValue = (field, value) => ({ value, source: field.source });
 
 const isEmpty = (value) => (Array.isArray(value) ? value.length === 0 : !value);
 
-/** Collapses whitespace and trims because page titles love stray newlines. */
 function clean(value) {
     if (typeof value !== 'string') return '';
     return value.replace(/\s+/g, ' ').trim();
@@ -216,10 +197,6 @@ function splitKeywords(value) {
         .slice(0, 15);
 }
 
-/**
- * Merges every JSON-LD block on the page into one lookup object, and records
- * the @types found and any blocks that failed to parse.
- */
 function readJsonLd($) {
     const merged = {};
     const types = new Set();

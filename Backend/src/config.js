@@ -1,5 +1,3 @@
-// Central place for every tunable knob, so deployment targets only need env vars.
-
 const int = (value, fallback) => {
     const parsed = Number.parseInt(value ?? '', 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -20,7 +18,6 @@ const list = (value, fallback) =>
 
 export const NODE_ENV = process.env.NODE_ENV || 'development';
 export const IS_PRODUCTION = NODE_ENV === 'production';
-export const IS_TEST = NODE_ENV === 'test';
 
 export const PORT = int(process.env.PORT, 3000);
 

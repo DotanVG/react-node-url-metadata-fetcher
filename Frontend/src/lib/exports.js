@@ -50,7 +50,6 @@ export function toCsv(results) {
 
 export const toJson = (results) => JSON.stringify(results, null, 2);
 
-/** Triggers a client-side file download without touching the network. */
 export function downloadFile(filename, content, mimeType) {
     const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
     const href = URL.createObjectURL(blob);

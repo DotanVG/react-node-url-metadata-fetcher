@@ -1,0 +1,2 @@
+# The CSP hash in public/_headers depends on the inline script bytes.
+Frontend/index.html text eol=lf

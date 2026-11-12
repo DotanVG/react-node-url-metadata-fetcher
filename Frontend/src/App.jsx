@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import DOMPurify from 'dompurify';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import { FiLink } from 'react-icons/fi';
 import 'react-toastify/dist/ReactToastify.css';
@@ -13,13 +12,11 @@ import SubmitButton from './components/SubmitButton.jsx';
 import TaggedUrls from './components/TaggedUrls.jsx';
 import UrlInput from './components/UrlInput.jsx';
 import { useBackendStatus } from './hooks/useBackendStatus.js';
+import { useMetadataFetch } from './hooks/useMetadataFetch.js';
 import { usePersistentUrls } from './hooks/usePersistentUrls.js';
 import { useTheme } from './hooks/useTheme.js';
-import { fetchMetadata, isRequestCancelled } from './lib/api.js';
 import { downloadFile, timestampedName, toCsv, toJson } from './lib/exports.js';
-import { parseUrlList } from './lib/urls.js';
-
-const MAX_URLS = 20;
+import { MAX_URLS, parseUrlList } from './lib/urls.js';
 
 const SAMPLE_URLS = [
     'https://dotanv.vercel.app',
@@ -29,46 +26,16 @@ const SAMPLE_URLS = [
     'https://dotanv.itch.io',
 ];
 
-/** Strips any markup the remote page smuggled into its own metadata. */
-const sanitizeText = (value) =>
-    typeof value === 'string'
-        ? DOMPurify.sanitize(value, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
-        : value;
-
-const sanitizeResult = (result) => ({
-    ...result,
-    title: sanitizeText(result.title),
-    description: sanitizeText(result.description),
-    siteName: sanitizeText(result.siteName),
-    author: sanitizeText(result.author),
-    imageAlt: sanitizeText(result.imageAlt),
-});
-
 function App() {
     const { theme, toggleTheme } = useTheme();
     const backend = useBackendStatus();
 
     const [inputValue, setInputValue] = useState('');
     const [urls, setUrls] = usePersistentUrls();
-    const [results, setResults] = useState([]);
-    const [summary, setSummary] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const { results, summary, isLoading, runFetch, clearResults } = useMetadataFetch(backend);
     const [copied, setCopied] = useState(false);
-
     const copyResetRef = useRef(null);
-    // Identifies the batch the screen is allowed to show. Clearing or a newer
-    // submit bumps it so a late response from an older batch cannot land.
-    const requestSeq = useRef(0);
-    const fetchAbortRef = useRef(null);
 
-    useEffect(() => {
-        return () => {
-            requestSeq.current += 1;
-            fetchAbortRef.current?.abort();
-        };
-    }, []);
-
-    /** Adds one or many URLs. Returns the list as it now stands. */
     const addUrls = useCallback(
         (rawValue) => {
             const { valid, invalid } = parseUrlList(rawValue);
@@ -81,8 +48,6 @@ function App() {
 
             if (accepted.length > 0) {
                 setUrls(nextUrls);
-                // A single addition speaks for itself. The chip appears right
-                // there. Only a bulk paste is worth interrupting for.
                 if (accepted.length > 1) {
                     toast.success(`Added ${accepted.length} URLs`);
                 }
@@ -117,70 +82,20 @@ function App() {
     );
 
     const clearAll = useCallback(() => {
-        requestSeq.current += 1;
-        fetchAbortRef.current?.abort();
-        fetchAbortRef.current = null;
+        clearResults();
         setUrls([]);
-        setResults([]);
-        setSummary(null);
-        setIsLoading(false);
-    }, [setUrls]);
+    }, [clearResults, setUrls]);
 
     const loadSamples = useCallback(() => {
         setUrls(SAMPLE_URLS);
         toast.info('Loaded five DotanV projects.');
     }, [setUrls]);
 
-    const runFetch = useCallback(
-        async (targetUrls) => {
-            const requestId = ++requestSeq.current;
-            fetchAbortRef.current?.abort();
-            const controller = new AbortController();
-            fetchAbortRef.current = controller;
-
-            setIsLoading(true);
-            setResults([]);
-            setSummary(null);
-
-            try {
-                const payload = await fetchMetadata(targetUrls, { signal: controller.signal });
-                if (requestId !== requestSeq.current) return;
-
-                backend.reportReachable();
-
-                setResults(payload.results.map(sanitizeResult));
-                setSummary(payload.summary ?? null);
-
-                // A clean run needs no toast. The results appear right below.
-                // Only partial or total failure is worth interrupting for.
-                const { succeeded = 0, failed = 0 } = payload.summary ?? {};
-                if (failed > 0 && succeeded === 0) {
-                    toast.error('None of those URLs could be fetched. See the details below.');
-                } else if (failed > 0) {
-                    toast.warning(`${succeeded} fetched, ${failed} failed. See the details below.`);
-                }
-            } catch (error) {
-                if (requestId !== requestSeq.current || isRequestCancelled(error)) return;
-                if (error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT') {
-                    backend.reportUnreachable();
-                }
-                toast.error(error.message);
-            } finally {
-                if (requestId === requestSeq.current) {
-                    setIsLoading(false);
-                }
-            }
-        },
-        [backend]
-    );
-
     const handleSubmit = useCallback(
         (event) => {
             event?.preventDefault();
             if (isLoading) return;
 
-            // Fetch whatever is in the box too, so a half-finished entry is not
-            // silently dropped on submit.
             const pending = inputValue.trim();
             const targetUrls = pending ? addUrls(pending) : urls;
 
@@ -216,7 +131,6 @@ function App() {
     const handlePaste = useCallback(
         (event) => {
             const pasted = event.clipboardData?.getData('text') ?? '';
-            // Only intercept multi-URL pastes; a single URL should stay editable.
             if (!/[\s,;]/.test(pasted.trim())) return;
 
             event.preventDefault();

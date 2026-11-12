@@ -1,11 +1,8 @@
+export const MAX_URLS = 20;
+
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
 const LOOKS_LIKE_DOMAIN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+/i;
 
-/**
- * Turns whatever the user typed into a URL we can send to the API, or null if
- * it is not salvageable. "example.com" becomes "https://example.com/" because people
- * rarely type the scheme, and rejecting them for it is just rude.
- */
 export function normalizeUrl(input) {
     if (typeof input !== 'string') return null;
 
@@ -37,11 +34,6 @@ export function normalizeUrl(input) {
 
 export const isValidUrl = (input) => normalizeUrl(input) !== null;
 
-/**
- * Splits a pasted blob into individual URLs. Handles newlines, commas,
- * semicolons and plain spaces, which covers copying from a spreadsheet, a
- * chat message or a browser's tab list.
- */
 export function parseUrlList(input) {
     if (typeof input !== 'string') return { valid: [], invalid: [] };
 
@@ -65,7 +57,6 @@ export function parseUrlList(input) {
     return { valid, invalid };
 }
 
-/** Compact display form: strips the scheme and any trailing slash. */
 export function prettyUrl(url) {
     if (typeof url !== 'string') return '';
     return url.replace(/^https?:\/\//, '').replace(/\/$/, '');

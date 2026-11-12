@@ -346,7 +346,11 @@ Backend/
     app.js                  Express app, routes, middleware, error handling
     config.js               every tunable, read from the environment
     urlSafety.js            URL parsing + SSRF guard
-    fetchPage.js            safe fetch: redirects, timeout, size cap, charset
+    publicFetch.js          shared SSRF-safe redirects, cancellation and body cleanup
+    fetchPage.js            HTML content validation, size cap and charset decoding
+    checkImage.js           bounded preview-image probe
+    imageSize.js            PNG/GIF/JPEG/WebP header decoding
+    metadataModel.js        metadata provenance and preview-image weight policy
     extractMetadata.js      OG → Twitter → JSON-LD → HTML extraction, with provenance
     auditMetadata.js        grades which tags a page publishes, infers or omits
     metadataService.js      bounded-concurrency batch runner
@@ -357,8 +361,8 @@ Frontend/
   src/
     App.jsx                 composition and state
     components/             presentational components, incl. the audit panel
-    hooks/                  useBackendStatus (wake-up), useTheme, usePersistentUrls
-    lib/                    api client, URL parsing, JSON/CSV export
+    hooks/                  backend wake-up, metadata request lifecycle, theme, URL persistence
+    lib/                    api client, backend status vocabulary, URL parsing/limit, JSON/CSV export
     tests/                  Vitest suites
 ```
 

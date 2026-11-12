@@ -1,6 +1,5 @@
 const TRACK = 'stroke-slate-200 dark:stroke-slate-700';
 
-/** Emerald / amber / rose, matching the thresholds used in the audit legend. */
 const scoreTone = (score) => {
     if (score >= 80) return 'emerald';
     if (score >= 50) return 'amber';
