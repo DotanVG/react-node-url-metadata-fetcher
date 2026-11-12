@@ -306,10 +306,34 @@ describe('POST /fetch-metadata per-URL errors', () => {
     });
 
     it('aborts outbound fetches when the client disconnects', async () => {
-        const startsBefore = fixture.activity.hangStarts;
         const closesBefore = fixture.activity.hangCloses;
         const server = await new Promise((resolve) => {
             const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+        });
+
+        // Explicit signals from the fixture, so the test follows the socket
+        // instead of sleeping for a fixed 700ms.
+        const hangStarted = new Promise((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error('The hung upstream request never started')),
+                1000
+            );
+            timer.unref?.();
+            fixture.activity.onHangStart = () => {
+                clearTimeout(timer);
+                resolve();
+            };
+        });
+        const hangClosed = new Promise((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error('The hung upstream request was not aborted')),
+                1000
+            );
+            timer.unref?.();
+            fixture.activity.onHangClose = () => {
+                clearTimeout(timer);
+                resolve();
+            };
         });
 
         try {
@@ -336,25 +360,20 @@ describe('POST /fetch-metadata per-URL errors', () => {
                     })
                 );
 
-                const started = Date.now();
-                const watch = setInterval(() => {
-                    if (fixture.activity.hangStarts > startsBefore) {
-                        clearInterval(watch);
+                hangStarted.then(
+                    () => req.destroy(),
+                    (error) => {
                         req.destroy();
-                    } else if (Date.now() - started > 1000) {
-                        clearInterval(watch);
-                        req.destroy();
-                        reject(new Error('The hung upstream request never started'));
+                        reject(error);
                     }
-                }, 10);
+                );
             });
 
-            const deadline = Date.now() + 700;
-            while (fixture.activity.hangCloses === closesBefore && Date.now() < deadline) {
-                await new Promise((resolve) => setTimeout(resolve, 20));
-            }
+            await hangClosed;
             expect(fixture.activity.hangCloses).toBeGreaterThan(closesBefore);
         } finally {
+            fixture.activity.onHangStart = undefined;
+            fixture.activity.onHangClose = undefined;
             await new Promise((done) => {
                 server.closeAllConnections?.();
                 server.close(done);

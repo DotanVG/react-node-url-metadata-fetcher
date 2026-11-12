@@ -12,6 +12,17 @@ export class ApiError extends Error {
     }
 }
 
+/** The caller aborted. Not a failure: nothing should be shown or retried. */
+export class RequestCancelled extends Error {
+    constructor() {
+        super('The request was cancelled.');
+        this.name = 'RequestCancelled';
+    }
+}
+
+export const isRequestCancelled = (error) =>
+    error instanceof RequestCancelled || error?.name === 'RequestCancelled';
+
 /**
  * Liveness probe. Doubles as the wake-up call for the free-tier host, which
  * suspends the instance after 15 minutes of inactivity and then needs the best
@@ -75,24 +86,39 @@ export async function fetchMetadata(urls, { signal, timeoutMs = 90_000 } = {}) {
 
 async function fetchWithTimeout(url, { timeoutMs, signal, ...options }) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // 'timeout' is our budget. 'cancelled' is the caller (clear, unmount, a newer submit).
+    let outcome = null;
 
-    const onAbort = () => controller.abort();
-    if (signal?.aborted) controller.abort();
-    else signal?.addEventListener('abort', onAbort);
+    const timer = setTimeout(() => {
+        outcome = 'timeout';
+        controller.abort(new DOMException('The request timed out.', 'TimeoutError'));
+    }, timeoutMs);
+
+    const onCallerAbort = () => {
+        if (outcome === 'timeout') return;
+        outcome = 'cancelled';
+        controller.abort(signal.reason);
+    };
+
+    if (signal?.aborted) onCallerAbort();
+    else signal?.addEventListener('abort', onCallerAbort);
 
     try {
         return await fetch(url, { ...options, signal: controller.signal });
+    } catch (error) {
+        if (outcome === 'cancelled') throw new RequestCancelled();
+        throw error;
     } finally {
         clearTimeout(timer);
-        signal?.removeEventListener('abort', onAbort);
+        signal?.removeEventListener('abort', onCallerAbort);
     }
 }
 
 function asApiError(error) {
-    if (error instanceof ApiError) return error;
+    if (error instanceof ApiError || isRequestCancelled(error)) return error;
 
-    if (error?.name === 'AbortError') {
+    // A bare abort here is our own budget expiring. A caller cancel never reaches this branch.
+    if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
         return new ApiError(
             'The request took too long and was cancelled. The API may still be starting up. Try again in a moment.',
             { code: 'TIMEOUT' }

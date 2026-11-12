@@ -25,11 +25,59 @@ const REQUEST_HEADERS = {
 /**
  * The per-URL budget always applies. An optional caller signal (the client
  * going away) aborts the same fetch without waiting out the budget.
+ * The timer is cleared when the caller wins, so a disconnect does not leave
+ * the timeout running.
  */
 export function combineSignal(signal, timeoutMs) {
-    const timeout = AbortSignal.timeout(timeoutMs);
-    if (!signal) return timeout;
-    return AbortSignal.any([signal, timeout]);
+    const controller = new AbortController();
+    let timer = null;
+
+    const abortFromTimeout = () => {
+        timer = null;
+        if (controller.signal.aborted) return;
+        controller.abort(new DOMException('The operation timed out.', 'TimeoutError'));
+    };
+
+    const arm = () => {
+        timer = setTimeout(abortFromTimeout, timeoutMs);
+        // The open socket keeps the process alive while a fetch is in flight.
+        // An abandoned timer should not.
+        timer.unref?.();
+    };
+
+    const disarm = () => {
+        if (timer === null) return;
+        clearTimeout(timer);
+        timer = null;
+    };
+
+    if (!signal) {
+        arm();
+        return controller.signal;
+    }
+
+    const onCallerAbort = () => {
+        disarm();
+        if (!controller.signal.aborted) controller.abort(signal.reason);
+    };
+
+    if (signal.aborted) {
+        onCallerAbort();
+        return controller.signal;
+    }
+
+    arm();
+    signal.addEventListener('abort', onCallerAbort, { once: true });
+    controller.signal.addEventListener(
+        'abort',
+        () => {
+            disarm();
+            signal.removeEventListener('abort', onCallerAbort);
+        },
+        { once: true }
+    );
+
+    return controller.signal;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { pingHealth } from '../lib/api.js';
+import { isRequestCancelled, pingHealth } from '../lib/api.js';
 
 // The API is hosted on a free tier that suspends the instance after a spell of
 // inactivity. A cold boot usually lands between 30 and 60 seconds, so we keep
@@ -68,8 +68,9 @@ export function useBackendStatus() {
                     });
                     if (cancelledRef.current) return;
                     setStatus(BACKEND_STATUS.ONLINE);
-                } catch {
-                    if (cancelledRef.current) return;
+                } catch (error) {
+                    // A newer wake-up, or unmount, aborted this ping. That is not a failure.
+                    if (cancelledRef.current || isRequestCancelled(error)) return;
 
                     const waitedMs = Date.now() - startedAtRef.current;
                     if (waitedMs >= WAKE_DEADLINE_MS) {

@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:csp": "node scripts/csp-smoke.mjs",
     "cover": "vitest run --coverage",
     "lint": "eslint ."
   },
