@@ -1,5 +1,4 @@
-import { HEAVY_IMAGE_BYTES } from './checkImage.js';
-import { SOURCES } from './extractMetadata.js';
+import { HEAVY_IMAGE_BYTES, SOURCES } from './metadataModel.js';
 
 /**
  * How much each field matters to a link preview. A missing `og:image` breaks
@@ -14,8 +13,8 @@ export const IMPORTANCE = {
 };
 
 export const STATUS = {
-    PUBLISHED: 'published', // the page declared it
-    INFERRED: 'inferred', // we worked it out; the page did not say
+    PUBLISHED: 'published',
+    INFERRED: 'inferred',
     MISSING: 'missing',
 };
 
@@ -25,18 +24,12 @@ const WEIGHTS = {
     [IMPORTANCE.OPTIONAL]: 1,
 };
 
-// An inferred value is better than nothing but worse than a declared one, so
-// it earns half credit rather than passing as if the author had set it.
 const CREDIT = {
     [STATUS.PUBLISHED]: 1,
     [STATUS.INFERRED]: 0.5,
     [STATUS.MISSING]: 0,
 };
 
-/**
- * The fields we grade, each with the tag an author would actually add to fix
- * it. The point of the audit is to be actionable, not just to keep score.
- */
 export const AUDITED_FIELDS = [
     {
         key: 'title',
@@ -147,17 +140,6 @@ function statusFor(value, source) {
     return source === SOURCES.DERIVED ? STATUS.INFERRED : STATUS.PUBLISHED;
 }
 
-/**
- * Grades one extracted result: what the page published, what we had to work
- * out for it, and what is simply absent.
- *
- * The score is weighted by importance and gives half credit for inferred
- * values, so it cannot be gamed by a page that publishes thirteen trivial
- * tags and no og:image.
- *
- * `robotsHeader` is the page's X-Robots-Tag; `image` is the checkImage()
- * result for the preview image, if it was probed.
- */
 export function auditMetadata(metadata, { robotsHeader = '', image = null } = {}) {
     const sources = metadata.sources ?? {};
     const signals = metadata.signals ?? {};
@@ -219,7 +201,6 @@ export function auditMetadata(metadata, { robotsHeader = '', image = null } = {}
         inferred: counts[STATUS.INFERRED],
         missing: counts[STATUS.MISSING],
         total: fields.length,
-        // The headline problems, so a caller can act without walking the list.
         missingEssential: fields
             .filter(
                 (field) =>
@@ -240,7 +221,6 @@ const PARAMETERIZED_ROBOTS = new Set([
     'max-snippet', 'max-image-preview', 'max-video-preview', 'unavailable_after',
 ]);
 
-/** Only standalone `noindex` / `none`, optionally scoped in X-Robots-Tag. */
 const hasNoindex = (directives, allowUserAgent = false) =>
     (directives ?? '').split(',').some((entry) => {
         let directive = entry.trim().toLowerCase();

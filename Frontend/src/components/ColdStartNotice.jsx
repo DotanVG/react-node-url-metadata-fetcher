@@ -1,7 +1,7 @@
 import { FiAlertTriangle, FiCoffee, FiRefreshCw } from 'react-icons/fi';
 
 import { API_BASE_URL } from '../lib/api.js';
-import { BACKEND_STATUS } from '../hooks/useBackendStatus.js';
+import { BACKEND_STATUS } from '../lib/backendStatus.js';
 
 /**
  * Explains the free-tier cold start rather than leaving the user to wonder why

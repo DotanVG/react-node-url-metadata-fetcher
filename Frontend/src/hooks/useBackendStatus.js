@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { isRequestCancelled, pingHealth } from '../lib/api.js';
+import { BACKEND_STATUS } from '../lib/backendStatus.js';
 
 // The API is hosted on a free tier that suspends the instance after a spell of
 // inactivity. A cold boot usually lands between 30 and 60 seconds, so we keep
@@ -9,13 +10,6 @@ const FIRST_PING_TIMEOUT_MS = 6000;
 const RETRY_TIMEOUT_MS = 12_000;
 const WAKE_DEADLINE_MS = 120_000;
 const BACKOFF_MS = [1500, 2500, 4000, 5000, 6000, 8000];
-
-export const BACKEND_STATUS = {
-    CHECKING: 'checking',
-    WAKING: 'waking',
-    ONLINE: 'online',
-    OFFLINE: 'offline',
-};
 
 /**
  * Wakes the API as soon as the page loads and reports where that stands, so
@@ -69,7 +63,6 @@ export function useBackendStatus() {
                     if (cancelledRef.current) return;
                     setStatus(BACKEND_STATUS.ONLINE);
                 } catch (error) {
-                    // A newer wake-up, or unmount, aborted this ping. That is not a failure.
                     if (cancelledRef.current || isRequestCancelled(error)) return;
 
                     const waitedMs = Date.now() - startedAtRef.current;
@@ -106,7 +99,6 @@ export function useBackendStatus() {
         };
     }, [wake, clearPendingRetry]);
 
-    // Drive the "waking up… 12s" counter.
     useEffect(() => {
         if (status !== BACKEND_STATUS.CHECKING && status !== BACKEND_STATUS.WAKING) {
             return undefined;

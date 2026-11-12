@@ -4,7 +4,8 @@ process.env.ALLOW_PRIVATE_ADDRESSES = 'true';
 
 import http from 'node:http';
 
-const { checkImage, imageSize } = await import('../src/checkImage.js');
+const { checkImage } = await import('../src/checkImage.js');
+const { imageSize } = await import('../src/imageSize.js');
 
 const png = (width, height) => {
     const buf = Buffer.alloc(33);

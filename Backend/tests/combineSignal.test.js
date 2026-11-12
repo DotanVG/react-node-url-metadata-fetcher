@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-import { combineSignal } from '../src/fetchPage.js';
+import { combineSignal } from '../src/publicFetch.js';
 import { ERROR_CODES, toMetadataError } from '../src/errors.js';
 
 describe('combineSignal', () => {

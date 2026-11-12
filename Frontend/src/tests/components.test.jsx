@@ -7,7 +7,7 @@ import ColdStartNotice from '../components/ColdStartNotice.jsx';
 import MetadataItem from '../components/MetadataItem.jsx';
 import ResultsSection from '../components/ResultsSection.jsx';
 import TaggedUrls from '../components/TaggedUrls.jsx';
-import { BACKEND_STATUS } from '../hooks/useBackendStatus.js';
+import { BACKEND_STATUS } from '../lib/backendStatus.js';
 
 describe('BackendStatus', () => {
     it('shows the elapsed time while the API wakes up', () => {

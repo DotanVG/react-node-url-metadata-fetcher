@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-import { BACKEND_STATUS, useBackendStatus } from '../hooks/useBackendStatus.js';
+import { useBackendStatus } from '../hooks/useBackendStatus.js';
+import { BACKEND_STATUS } from '../lib/backendStatus.js';
 
 describe('useBackendStatus', () => {
     beforeEach(() => {

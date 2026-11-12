@@ -27,11 +27,6 @@ const GROUPS = [
     },
 ];
 
-/**
- * Row appearance per status. A missing *essential* tag is the only thing that
- * earns a red mark. Flagging an absent `theme-color` in the same red would
- * train people to ignore the whole panel.
- */
 function presentation(status, importance) {
     if (status === 'published') {
         return {
@@ -69,7 +64,6 @@ const SOURCE_LABELS = {
     derived: 'Guessed by us',
 };
 
-/** Short, readable rendering of whatever the field actually holds. */
 function preview(value) {
     if (Array.isArray(value)) return value.join(', ');
     if (typeof value !== 'string' || !value) return '';
@@ -84,7 +78,6 @@ function formatBytes(bytes) {
         : `${Math.round(bytes / 1024)} KB`;
 }
 
-/** One line of what the preview-image probe actually got back. */
 function describeImage(image) {
     if (!image) return '';
     if (image.error) return image.error;
@@ -106,10 +99,6 @@ const Tally = ({ Icon, className, count, label }) => (
     </span>
 );
 
-/**
- * Collapsible breakdown of which metadata a page publishes, which we had to
- * infer, and which is absent, with the tag needed to fix each gap.
- */
 const MetadataAudit = ({ audit, result }) => {
     const [isOpen, setIsOpen] = useState(false);
     const panelId = useId();
@@ -248,8 +237,6 @@ const MetadataAudit = ({ audit, result }) => {
                                                                     field.source}
                                                             </span>
                                                         )}
-                                                        {/* Status in words, so the meaning
-                                                            does not rely on colour alone. */}
                                                         <span className={`text-[11px] ${className}`}>
                                                             {word}
                                                         </span>

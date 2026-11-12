@@ -1,7 +1,3 @@
-/**
- * Every failure the API can report about a single URL, with a message written
- * for the person staring at the UI rather than for a log file.
- */
 export const ERROR_CODES = {
     INVALID_URL: 'INVALID_URL',
     UNSUPPORTED_PROTOCOL: 'UNSUPPORTED_PROTOCOL',
@@ -30,10 +26,6 @@ export class MetadataError extends Error {
     }
 }
 
-/**
- * Turns a thrown value from `fetch` (or our own guards) into a MetadataError
- * whose message a user can act on.
- */
 export function toMetadataError(error, url) {
     if (error instanceof MetadataError) return error;
 
@@ -95,9 +87,6 @@ function safeHostname(url) {
     }
 }
 
-/**
- * Human-readable explanation for an unhappy HTTP status.
- */
 export function describeHttpStatus(status, statusText) {
     const explanations = {
         401: 'The page requires a login, so its metadata is not public.',

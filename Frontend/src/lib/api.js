@@ -12,7 +12,6 @@ export class ApiError extends Error {
     }
 }
 
-/** The caller aborted. Not a failure: nothing should be shown or retried. */
 export class RequestCancelled extends Error {
     constructor() {
         super('The request was cancelled.');
@@ -86,7 +85,6 @@ export async function fetchMetadata(urls, { signal, timeoutMs = 90_000 } = {}) {
 
 async function fetchWithTimeout(url, { timeoutMs, signal, ...options }) {
     const controller = new AbortController();
-    // 'timeout' is our budget. 'cancelled' is the caller (clear, unmount, a newer submit).
     let outcome = null;
 
     const timer = setTimeout(() => {
@@ -117,7 +115,6 @@ async function fetchWithTimeout(url, { timeoutMs, signal, ...options }) {
 function asApiError(error) {
     if (error instanceof ApiError || isRequestCancelled(error)) return error;
 
-    // A bare abort here is our own budget expiring. A caller cancel never reaches this branch.
     if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
         return new ApiError(
             'The request took too long and was cancelled. The API may still be starting up. Try again in a moment.',

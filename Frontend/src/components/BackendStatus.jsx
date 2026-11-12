@@ -1,6 +1,6 @@
 import { FiAlertTriangle, FiCheckCircle, FiLoader, FiRefreshCw } from 'react-icons/fi';
 
-import { BACKEND_STATUS } from '../hooks/useBackendStatus.js';
+import { BACKEND_STATUS } from '../lib/backendStatus.js';
 
 const PRESETS = {
     [BACKEND_STATUS.CHECKING]: {
